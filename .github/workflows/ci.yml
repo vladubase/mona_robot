@@ -13,22 +13,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. Сборка образа
-      - name: Build Docker Image
-        run: |
-          docker build . \
-            --file Dockerfile \
-            --tag mona_ci \
-            --build-arg USER_UID=1001 \
-            --build-arg USER_GID=1001
+      # 1. Настройка Buildx (нужен для кэша)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # 2. Запуск скрипта local_ci.bash
-      # Мы монтируем папки src и scripts точно так же, как в docker-compose
-      # Это гарантирует, что тестируется именно тот код, который запушен.
+      # 2. Сборка образа с кэшем
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          tags: mona_ci:latest
+          # load: true нужен, чтобы передать образ в следующий шаг
+          load: true
+          build-args: |
+            USER_UID=1001
+            USER_GID=1001
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 3. Запуск скрипта
+      # Монтируем папки, чтобы тестировать именно текущий код с тестами
       - name: Run Global CI Script inside Docker
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/src:/home/mona_dev/mona_ws/src \
             -v ${{ github.workspace }}/scripts:/home/mona_dev/mona_ws/scripts \
-            mona_ci \
+            mona_ci:latest \
             /bin/bash -c "cd /home/mona_dev/mona_ws && ./src/scripts/local_ci.bash"

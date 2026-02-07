@@ -25,3 +25,4 @@ docker compose up -d
 
 # 3. Вход в терминал контейнера
 docker exec -it mona_dev bash
+```
