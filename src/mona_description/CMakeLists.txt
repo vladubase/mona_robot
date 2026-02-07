@@ -6,11 +6,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-# urdf и xacro здесь нужны скорее как run-time зависимости, но проверка не помешает
 find_package(urdf REQUIRED)
 find_package(xacro REQUIRED)
 
-# Устанавливаем папки в share директорию пакета
 install(
   DIRECTORY launch urdf meshes rviz worlds
   DESTINATION share/${PROJECT_NAME}

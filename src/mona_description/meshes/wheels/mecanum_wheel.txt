@@ -1,0 +1,10 @@
+﻿"Symbol";"Value";"Unit";
+"TraceParts.PartNumber";"27-05349814-601072";"";
+"REFERENCE";"NM254AL";"";
+"TraceParts.PartTitle";"10inch(254mm) heavyduty industrial mecanum wheel (Load cacipity 1500KG) NM254A";"";
+"TraceParts.InstanceId";"27-05349814-60107236FDR7KA1GQNQOJK3QTZMLD2H";"";
+"SUPPLIER";"NEXUSROBOT";"";
+"DESIGN";"10inch(254mm) heavyduty industrial mecanum wheel (Load cacipity 1500KG) NM254A";"";
+"TRACEPARTS";"TRACEPARTS";"";
+"TraceParts.PartLanguage";"en";"";
+"TraceParts.PartVersion";"1.0.0";"";
