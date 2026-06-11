@@ -79,7 +79,7 @@ jobs:
       
       # 5. Upload coverage report to Codecov
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         if: env.CODECOV_TOKEN != null # Executes only if the CODECOV_TOKEN secret is provisioned
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
