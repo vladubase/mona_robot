@@ -20,7 +20,7 @@ make ci
 ```
 
 > [!NOTE]
-> This script automatically executes colcon test, evaluates linter compliance, and prints a summary of any failed test cases.
+> This script automatically executes `colcon test`, evaluates linter compliance, generates a line-coverage summary, and fails the run when the configured coverage threshold is not met.
 
 ---
 
@@ -84,4 +84,26 @@ ament_uncrustify --reformat src/
 
 ## 5. Code Coverage (Codecov)
 
-The GitHub Actions CI pipeline is configured to compile the workspace with the `-fprofile-arcs -ftest-coverage` GCC flags. Test coverage reports are automatically uploaded to Codecov on every Pull Request. Reviewers will block PRs that significantly drop the overall test coverage percentage.
+The CI pipeline compiles the workspace with GCC coverage instrumentation (`--coverage`). When `lcov` is available, `run_ci_checks.bash` writes `build/coverage.info` and prints the standard `lcov --list` report. GitHub Actions uploads this report to Codecov on every Pull Request.
+
+For local containers or older images where `lcov` is not installed, the script falls back to `gcov` and reports line coverage for the production C++ components:
+- `mona_control::TwistMuxNode`
+- `mona_safety::SafetyNode`
+- `mona_perception::LidarMergerNode`
+- `mona_core::FdirManagerNode`
+
+The default local line-coverage gate is `60%`. A lower result fails CI after tests complete, so coverage regressions are visible even when all GTest suites pass.
+
+To raise or lower the local gate while already inside the dev container:
+```bash
+COVERAGE_MIN_LINES=70 ./scripts/run_ci_checks.bash
+```
+
+Current verified local baseline:
+```text
+mona_control      74.86%
+mona_safety       77.45%
+mona_perception   80.00%
+mona_core         49.83%
+TOTAL             67.28%
+```

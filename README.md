@@ -23,7 +23,7 @@ Within its microservice architecture, MONA functions as an Edge Agent in the dis
 * **Industrial Safety (ISO 13849-1 / IEC 61508):** Hybrid FDIR (Fault Detection, Isolation, and Recovery) architecture. Includes **Fate Isolation** (independent OS processes), **Zero Velocity Override**, hardware redundancy for contactor cutoff circuits, Watchdog timers, and EMA (Exponential Moving Average) smoothing for heavy chassis peak loads during teleoperation.
 * **Network Stack and DDS:** Direct host network access (`network_mode: host`) with flexible visibility control (`ROS_LOCALHOST_ONLY`) and strict DDS implementation enforcement (`rmw_fastrtps_cpp`).
 * **Fleet Management Ready:** The architecture lays the foundation for future integration with VDA 5050 and Open-RMF fleet management standards (LISA).
-* **Strict CI/CD:** Comprehensive code coverage utilizing static analyzers (Clang-Tidy, CPPCheck, Uncrustify, Black, Flake8) and unit testing (GTest).
+* **Strict CI/CD:** Comprehensive test validation using static analyzers (Clang-Tidy, CPPCheck, Uncrustify, Black, Flake8), GTest, and a local coverage gate with `lcov`/`gcov` reporting.
 
 ## Component Architecture
 The project is built upon the ROS 2 component architecture (Zero-copy IPC), divided into the following logical domains:
@@ -73,7 +73,7 @@ The project provides a unified `Makefile` for rapid development, but also suppor
 # Enter the isolated environment
 make shell
 
-# Execute full CI pipeline (Linters + GTest)
+# Execute full CI pipeline (linters, GTest, coverage gate)
 make ci
 
 # Format all C++/Python source code

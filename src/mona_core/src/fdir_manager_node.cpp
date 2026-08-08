@@ -43,12 +43,6 @@ FdirManagerNode::FdirManagerNode(const rclcpp::NodeOptions &options)
     // Initialize Reentrant group to prevent deadlocks during blocking service calls
     callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
-    // Initialize deterministic safety monitoring loop (10 Hz = 100 ms)
-    monitor_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(100),
-        std::bind(&FdirManagerNode::monitor_loop, this),
-        callback_group_);
-
     // QoS: Reliable + Transient Local for safety-critical state broadcast
     rclcpp::QoS qos_profile(10);
     qos_profile.reliable();
@@ -74,6 +68,12 @@ FdirManagerNode::FdirManagerNode(const rclcpp::NodeOptions &options)
 
     // Parse configurations and provision dynamic interfaces
     init_managed_nodes();
+
+    // Initialize deterministic safety monitoring loop (10 Hz = 100 ms)
+    monitor_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(100),
+        std::bind(&FdirManagerNode::monitor_loop, this),
+        callback_group_);
 
     RCLCPP_INFO(this->get_logger(), "FDIR Manager initialized.");
 }

@@ -108,7 +108,75 @@ if command -v lcov &> /dev/null; then
     lcov --list build/coverage.info
     echo -e "${YELLOW}================================================================================\n${NC}"
 else
-    echo -e "${RED}[WARN] lcov not found. Skipping coverage report.${NC}"
+    echo -e "${YELLOW}[WARN] lcov not found. Falling back to gcov line coverage.${NC}"
+
+    if ! command -v gcov &> /dev/null; then
+        echo -e "${RED}[ERROR] Neither lcov nor gcov found. Cannot generate coverage report.${NC}"
+        exit 1
+    fi
+
+    COVERAGE_MIN_LINES="${COVERAGE_MIN_LINES:-60}"
+    COVERAGE_TMP_DIR="$(mktemp -d)"
+    COVERAGE_SUMMARY="${COVERAGE_TMP_DIR}/summary.txt"
+    WORKSPACE_DIR="$(pwd)"
+
+    coverage_sources=(
+        "mona_control:build/mona_control/CMakeFiles/twist_mux_component.dir/src/twist_mux_node.cpp.o:src/mona_control/src/twist_mux_node.cpp"
+        "mona_safety:build/mona_safety/CMakeFiles/safety_component.dir/src/safety_node.cpp.o:src/mona_safety/src/safety_node.cpp"
+        "mona_perception:build/mona_perception/CMakeFiles/lidar_merger_component.dir/src/lidar_merger_node.cpp.o:src/mona_perception/src/lidar_merger_node.cpp"
+        "mona_core:build/mona_core/CMakeFiles/fdir_manager_component.dir/src/fdir_manager_node.cpp.o:src/mona_core/src/fdir_manager_node.cpp"
+    )
+
+    (
+        cd "${COVERAGE_TMP_DIR}" || exit 1
+        for item in "${coverage_sources[@]}"; do
+            IFS=":" read -r package object_file source_file <<< "${item}"
+            gcov_output="$(gcov -b -c -o "${WORKSPACE_DIR}/${object_file}" "${WORKSPACE_DIR}/${source_file}")"
+            line_summary="$(echo "${gcov_output}" | awk '/^Lines executed:/ {print; exit}')"
+
+            if [ -z "${line_summary}" ]; then
+                echo -e "${RED}[ERROR] Failed to read gcov output for ${source_file}.${NC}"
+                exit 1
+            fi
+
+            printf "%s\t%s\t%s\n" "${package}" "${source_file}" "${line_summary}" >> "${COVERAGE_SUMMARY}"
+        done
+    )
+
+    echo -e "${YELLOW}\n================================================================================${NC}"
+    echo -e "${YELLOW}                       GCOV LINE COVERAGE SUMMARY                               ${NC}"
+    echo -e "${YELLOW}================================================================================${NC}"
+    awk -F "\t" '
+        {
+            line = $3
+            pct = line
+            sub(/^Lines executed:/, "", pct)
+            sub(/% of .*/, "", pct)
+            total = line
+            sub(/^.* of /, "", total)
+            covered += (pct * total / 100.0)
+            lines += total
+            printf "  %-16s %6.2f%%  (%s lines)\n", $1, pct, total
+        }
+        END {
+            total_pct = (lines > 0) ? (covered * 100.0 / lines) : 0
+            printf "--------------------------------------------------------------------------------\n"
+            printf "  %-16s %6.2f%%  (%d lines)\n", "TOTAL", total_pct, lines
+            printf "%.2f\n", total_pct > "/tmp/mona_coverage_total.txt"
+        }
+    ' "${COVERAGE_SUMMARY}"
+    echo -e "${YELLOW}================================================================================\n${NC}"
+
+    total_coverage="$(cat /tmp/mona_coverage_total.txt)"
+    rm -f /tmp/mona_coverage_total.txt
+    rm -rf "${COVERAGE_TMP_DIR}"
+
+    if awk "BEGIN {exit !(${total_coverage} < ${COVERAGE_MIN_LINES})}"; then
+        echo -e "${RED}[ERROR] Line coverage ${total_coverage}% is below threshold ${COVERAGE_MIN_LINES}%.${NC}"
+        exit 1
+    fi
+
+    echo -e "${GREEN}[OK] Line coverage ${total_coverage}% meets threshold ${COVERAGE_MIN_LINES}%.${NC}"
 fi
 
 # ------------------------------------------------------------------------------

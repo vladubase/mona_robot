@@ -107,7 +107,10 @@ if(BUILD_TESTING)
     rclcpp
     rclcpp_lifecycle
     lifecycle_msgs
+    geometry_msgs
+    std_msgs
     sensor_msgs
+    tf2_ros
   )
 
   ament_add_gtest(test_lidar_merger_lifecycle test/test_lidar_merger_lifecycle.cpp)

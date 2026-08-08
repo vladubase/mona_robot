@@ -1,0 +1,163 @@
+# CHANGELOG
+
+All commits from branch `main` (newest to oldest).
+
+- `e3799b1` (2026-04-30, Uladzislau Dubatouka): Merge pull request #60 from vladubase/docs/finalize-architecture-docs
+- `8c866a8` (2026-04-30, uladzislau.dubatouka@innowise.com): refactor(perception): apply brace initialization and edge-triggered power validation
+- `0865a98` (2026-04-30, uladzislau.dubatouka@innowise.com): refactor(core): enforce modern C++ strict initialization and FDIR safe-defaults
+- `85b3d6b` (2026-04-30, uladzislau.dubatouka@innowise.com): chore: update lifecycle test namespaces and formatting rules
+- `54e7763` (2026-04-27, Uladzislau Dubatouka): Merge pull request #59 from vladubase/docs/finalize-architecture-docs
+- `1bfc52c` (2026-04-27, uladzislau.dubatouka@innowise.com): docs: polish CI descriptions
+- `e1b3e30` (2026-04-26, Uladzislau Dubatouka): Merge pull request #58 from vladubase/feature/safety-contracts-and-ci
+- `fa72599` (2026-04-26, Uladzislau Dubatouka): Merge branch 'main' into feature/safety-contracts-and-ci
+- `ac8407b` (2026-04-26, uladzislau.dubatouka@innowise.com): refactor(launch): implement fate isolation and fix QoS late joiner bugs
+- `2d27acd` (2026-04-26, uladzislau.dubatouka@innowise.com): feat(fdir): migrate FDIR manager to C++ for hard real-time execution
+- `5efb587` (2026-04-26, uladzislau.dubatouka@innowise.com): fix(core): prevent segfaults and race conditions during component unload
+- `732340c` (2026-04-26, uladzislau.dubatouka@innowise.com): feat(ci): revamp dev environment, scripts, and CI pipeline
+- `a10637e` (2026-04-19, Uladzislau Dubatouka): Merge pull request #57 from vladubase/feature/safety-contracts-and-ci
+- `f271f69` (2026-04-19, uladzislau.dubatouka@innowise.com): refactor(core): migrate to strict safety contracts and fix split-brain
+- `76a735d` (2026-04-19, uladzislau.dubatouka@innowise.com): fix(devops): force clean FastDDS shared memory to prevent deadlocks
+- `1e0dab2` (2026-04-16, Uladzislau Dubatouka): Merge pull request #56 from vladubase/docs-fix-picture-syntax
+- `0d389e5` (2026-04-15, Uladzislau Dubatouka): docs: fix image syntax in Foxglove guide
+- `f25f5dd` (2026-04-15, Uladzislau Dubatouka): Merge pull request #55 from vladubase/refactor/fdir-and-final-polishing
+- `0b881d7` (2026-04-15, Uladzislau Dubatouka): Merge branch 'main' into refactor/fdir-and-final-polishing
+- `438177b` (2026-04-15, uladzislau.dubatouka@innowise.com): refactor(fdir): decouple hardware/software lifecycles and enforce zero-trust state validation
+- `c72acc2` (2026-04-15, uladzislau.dubatouka@innowise.com): chore(configs): append Apache 2.0 license headers to ROS 2 parameters
+- `e150563` (2026-04-15, uladzislau.dubatouka@innowise.com): docs: update README and add Foxglove preview visualization
+- `e195700` (2026-04-13, Uladzislau Dubatouka): Merge pull request #54 from vladubase/feat/swarm-architecture-and-localization
+- `368c676` (2026-04-13, Uladzislau Dubatouka): Merge branch 'main' into feat/swarm-architecture-and-localization
+- `f9e41b2` (2026-04-13, uladzislau.dubatouka@innowise.com): chore: enforce strict linter rules and standardize parameter profiles
+- `7e48a2d` (2026-04-13, Uladzislau Dubatouka): Merge pull request #53 from vladubase/feat/swarm-architecture-and-localization
+- `a3b2ab4` (2026-04-13, uladzislau.dubatouka@innowise.com): refactor(safety): optimize FDIR state parsing with O(1) hash map and switch-case
+- `6f18d6a` (2026-04-12, Uladzislau Dubatouka): Merge branch 'main' into feat/swarm-architecture-and-localization
+- `e591eaa` (2026-04-12, uladzislau.dubatouka@innowise.com): docs: restructure and localize architecture guides
+- `86af39c` (2026-04-12, uladzislau.dubatouka@innowise.com): feat(core): introduce FDIR manager, swarm namespaces and dynamic URDF
+- `cf7081c` (2026-04-12, uladzislau.dubatouka@innowise.com): refactor(cpp): migrate nodes to lifecycle components and add FDIR
+- `142e68c` (2026-04-12, uladzislau.dubatouka@innowise.com): feat(scripts): implement dynamic swarm spawning bash scripts
+- `dcc842c` (2026-04-12, uladzislau.dubatouka@innowise.com): ci: modernize deployment and localize root documentation
+- `e747a18` (2026-04-06, Uladzislau Dubatouka): Merge pull request #50 from vladubase/ci/matrix-testing
+- `05262ab` (2026-04-06, Uladzislau Dubatouka): Merge pull request #49 from vladubase/chore/foxglove-layout
+- `05d723b` (2026-04-06, Uladzislau Dubatouka): Merge pull request #48 from vladubase/docs/youtube-preview
+- `0e9ade7` (2026-04-06, uladzislau.dubatouka@innowise.com): chore(foxglove): update dashboard layout configuration
+- `af3c951` (2026-04-06, uladzislau.dubatouka@innowise.com): docs: add high-res YouTube mirror for GitHub preview
+- `b67c5ab` (2026-04-06, uladzislau.dubatouka@innowise.com): ci: implement matrix testing for Ubuntu 22.04 and 24.04 LTS
+- `f7a936e` (2026-04-05, Uladzislau Dubatouka): Update video link to YouTube demonstration
+- `8ce484a` (2026-04-05, Uladzislau Dubatouka): Merge pull request #47 from vladubase/feat/add-front-camera
+- `8e1e572` (2026-04-05, Uladzislau Dubatouka): Update README to link to MONA video
+- `5fdcbb0` (2026-04-05, Uladzislau Dubatouka): Merge pull request #46 from vladubase/docs/readme-demo
+- `bd66e6f` (2026-04-05, uladzislau.dubatouka@innowise.com): feat: add front camera URDF and gazebo bridge
+- `2b75c0c` (2026-04-05, uladzislau.dubatouka@innowise.com): docs: add MONA robot demonstration video to README
+- `1af20fb` (2026-04-05, Uladzislau Dubatouka): Merge pull request #45 from vladubase/feat/safety-and-control-refactor
+- `8da6b55` (2026-04-05, uladzislau.dubatouka@innowise.com): docs(foxglove): add monitoring layout and user guide
+- `c6ccbb8` (2026-04-05, uladzislau.dubatouka@innowise.com): feat(core): update bringup for multi-threaded container and enhance FDIR transitions
+- `738d82f` (2026-04-05, uladzislau.dubatouka@innowise.com): refactor: implement strict enum state machines and fix zero-vel spam
+- `8baaf73` (2026-04-04, Uladzislau Dubatouka): fix: badge Codecov formatting in README.md
+- `5925a6e` (2026-04-04, Uladzislau Dubatouka): Merge pull request #44 from vladubase/ci/codecov-integration
+- `837430d` (2026-04-04, uladzislau.dubatouka@innowise.com): ci: integrate lcov and Codecov for test coverage tracking
+- `a0a2222` (2026-04-04, Uladzislau Dubatouka): Merge pull request #43 from vladubase/feat/nav2-tuning-and-components
+- `6514d5f` (2026-04-04, uladzislau.dubatouka@innowise.com): docs: update architecture, nodes pipeline, and FDIR docs to reflect mona_control and mona_safety split
+- `1db07e3` (2026-04-04, uladzislau.dubatouka@innowise.com): feat(fdir): integrate new components and harden async lifecycle management
+- `f4ff290` (2026-04-04, uladzislau.dubatouka@innowise.com): refactor(architecture): decouple safety and control logic into standalone components
+- `8a9cf89` (2026-04-04, Uladzislau Dubatouka): Merge pull request #42 from vladubase/feat/nav2-tuning-and-components
+- `60b4954` (2026-04-04, uladzislau.dubatouka@innowise.com): feat(core): refactor to components, tune Nav2 kinematics, and add tests
+- `db740fb` (2026-04-03, Uladzislau Dubatouka): Merge pull request #41 from vladubase/feat/smart-safety-and-teleop
+- `1230461` (2026-04-03, uladzislau.dubatouka@innowise.com): feat(core): complete component migration, Nav2 tuning, and QoS alignment
+- `2c59a02` (2026-04-03, Uladzislau Dubatouka): Merge pull request #40 from vladubase/feat/smart-safety-and-teleop
+- `2ce8838` (2026-04-03, uladzislau.dubatouka@innowise.com): fix: resolve shellcheck SC2181, PEP8 E241, and docker volume rm issue
+- `d4fb907` (2026-04-03, uladzislau.dubatouka@innowise.com): refactor: upgrade SafetyNode routing and convert LidarMerger to ROS 2 component
+- `fc99c82` (2026-04-03, uladzislau.dubatouka@innowise.com): feat(core): update launch configs, docker-compose network and URDF limits
+- `e867b76` (2026-04-03, uladzislau.dubatouka@innowise.com): docs: expand safety architecture, FDIR diagrams and gamepad setup
+- `98802af` (2026-04-03, uladzislau.dubatouka@innowise.com): ci: enhance GitHub Actions, Dockerfile dependencies and local test runner
+- `1047f9f` (2026-03-15, Uladzislau Dubatouka): Merge pull request #39 from vladubase/docs/mapping-architecture
+- `911d539` (2026-03-15, uladzislau.dubatouka@innowise.com): docs: restructure documentation and add mapping guidelines
+- `d3a82a4` (2026-03-15, Uladzislau Dubatouka): Merge pull request #38 from vladubase/fix/slam-tf-pipeline
+- `ab5f7c5` (2026-03-15, uladzislau.dubatouka@innowise.com): fix: add missing license headers and format code
+- `7afe4e4` (2026-03-15, uladzislau.dubatouka@innowise.com): fix: stabilize SLAM pipeline and ground truth odometry
+- `2f31d30` (2026-03-15, uladzislau.dubatouka@innowise.com): fix: resolve gazebo shaders and add slam dependencies
+- `93948f1` (2026-03-13, Uladzislau Dubatouka): Merge pull request #36 from vladubase/refactor/env-setup-standardization
+- `1ecf0b9` (2026-03-13, uladzislau.dubatouka@innowise.com): refactor(env): standardize docker setup, sim scripts, and docs
+- `bb09b9a` (2026-03-12, Uladzislau Dubatouka): Merge pull request #35 from vladubase/dependabot/github_actions/docker/build-push-action-7
+- `924285d` (2026-03-12, Uladzislau Dubatouka): Merge pull request #34 from vladubase/dependabot/github_actions/docker/setup-buildx-action-4
+- `164d42d` (2026-03-12, dependabot[bot]): build(deps): bump docker/build-push-action from 6 to 7
+- `c3c589b` (2026-03-12, dependabot[bot]): build(deps): bump docker/setup-buildx-action from 3 to 4
+- `f220d8b` (2026-03-03, Uladzislau Dubatouka): Merge pull request #33 from vladubase/fix/gpu-dri-permissions
+- `befd12f` (2026-03-03, uladzislau.dubatouka@innowise.com): fix: grant /dev/dri permissions for iGPU hardware acceleration
+- `ffe1cb0` (2026-03-03, Uladzislau Dubatouka): Merge pull request #32 from DanilaE-in/feat/nvidia-gpu
+- `acc4054` (2026-03-03, DanilaE): Refactor README to clarify documentation structure for English version
+- `b1909be` (2026-03-03, DanilaE): Update documentation to include English and Russian versions for all technical guides
+- `1e83c66` (2026-03-03, DanilaE): Update README to enhance link formatting for English version
+- `c2e9a9b` (2026-03-03, Uladzislau Dubatouka): Merge pull request #29 from vladubase/feat/nvidia-gpu
+- `9ad31b5` (2026-03-03, Uladzislau Dubatouka): Merge pull request #30 from DanilaE-in/feat/nvidia-gpu
+- `ce42f93` (2026-03-03, Mary Grankovskaya): Added NVIDIA GPU support
+- `ac54106` (2026-03-03, DanilaE): Implement Docker Compose setup for NVIDIA GPU support and add Makefile for convenience
+- `3b1395a` (2026-02-15, Uladzislau Dubatouka): Merge pull request #28 from vladubase/feat/fdir-safety-architecture
+- `5f861bf` (2026-02-15, uladzislau.dubatouka@innowise.com): feat: implement FDIR safety architecture and hardware redundancy
+- `e1de194` (2026-02-13, Uladzislau Dubatouka): Merge pull request #27 from vladubase/feat/update-ci
+- `70285ea` (2026-02-13, Uladzislau Dubatouka): feat: update CI workflow to ignore specific paths
+- `cddf3ca` (2026-02-13, Uladzislau Dubatouka): Merge pull request #25 from vladubase/dependabot/github_actions/github/codeql-action-4
+- `9501066` (2026-02-13, Uladzislau Dubatouka): Merge pull request #24 from vladubase/dependabot/github_actions/docker/build-push-action-6
+- `eb6eb7d` (2026-02-13, Uladzislau Dubatouka): Merge pull request #23 from vladubase/dependabot/github_actions/actions/checkout-6
+- `cd91945` (2026-02-13, Uladzislau Dubatouka): Merge pull request #22 from vladubase/dependabot/github_actions/ossf/scorecard-action-2.4.3
+- `bbf0dc0` (2026-02-12, dependabot[bot]): build(deps): bump github/codeql-action from 3 to 4
+- `1d951a5` (2026-02-12, dependabot[bot]): build(deps): bump docker/build-push-action from 5 to 6
+- `229bfd0` (2026-02-12, dependabot[bot]): build(deps): bump actions/checkout from 4 to 6
+- `96e53c9` (2026-02-12, dependabot[bot]): build(deps): bump ossf/scorecard-action from 2.4.0 to 2.4.3
+- `4176f45` (2026-02-13, Uladzislau Dubatouka): Configure Dependabot for GitHub Actions and Docker
+- `af8f3e5` (2026-02-13, Uladzislau Dubatouka): docs: update SECURITY.md to streamline vulnerability reporting
+- `a70f8c1` (2026-02-13, Uladzislau Dubatouka): Change permissions to read-all in scorecard.yml
+- `98efd37` (2026-02-13, Uladzislau Dubatouka): Add OpenSSF Scorecard badge
+- `c2c820f` (2026-02-13, Uladzislau Dubatouka): Merge pull request #21 from vladubase/feat/git-workflow-improve
+- `afc78d6` (2026-02-13, uladzislau.dubatouka@innowise.com): feat(ci): add scorecard as automatic security auditor
+- `ad35f16` (2026-02-13, Uladzislau Dubatouka): Add CodeFactor badge to README
+- `373eb36` (2026-02-13, Uladzislau Dubatouka): Merge pull request #20 from vladubase/fix/alert-autofix-1
+- `ddb1ff5` (2026-02-13, Uladzislau Dubatouka): fix(ci): Potential fix for code scanning alert no. 1: Workflow does not contain permissions
+- `5543bf1` (2026-02-13, Uladzislau Dubatouka): Update CI badge and add CodeQL badge in README
+- `e4d18d4` (2026-02-12, Uladzislau Dubatouka): Merge pull request #19 from vladubase/docs/update-safety-and-compliance
+- `3126c23` (2026-02-12, uladzislau.dubatouka@innowise.com): docs: update safety and compliance block
+- `f950dc5` (2026-02-12, Uladzislau Dubatouka): Merge pull request #18 from vladubase/docs/add-visual-assets
+- `b6db8fb` (2026-02-12, uladzislau.dubatouka@innowise.com): docs: add architecture diagrams and update env
+- `1d71841` (2026-02-12, Uladzislau Dubatouka): Change git clone command to SSH format
+- `d37178a` (2026-02-12, Uladzislau Dubatouka): Merge pull request #17 from vladubase/docs/update-build-protocols
+- `fb32700` (2026-02-12, uladzislau.dubatouka@innowise.com): docs: restructure project documentation for safety standards
+- `8d994b4` (2026-02-12, Uladzislau Dubatouka): Merge pull request #16 from vladubase/refactor/safety-core-integration
+- `1467709` (2026-02-12, uladzislau.dubatouka@innowise.com): Fix(cmake): Remove missing launch directory from install target in mona_description
+- `33d0325` (2026-02-12, uladzislau.dubatouka@innowise.com): Refactor: Integrate safety logic into mona_core.
+- `5087089` (2026-02-11, Uladzislau Dubatouka): Merge pull request #15 from vladubase/feature/lidar-fusion
+- `80196e0` (2026-02-11, uladzislau.dubatouka@innowise.com): fix: Disable clang-tidy in CI
+- `bdbd921` (2026-02-10, uladzislau.dubatouka@innowise.com): feat: Add lidar fusion and warehouse, remove mona_core
+- `bd726a9` (2026-02-10, Uladzislau Dubatouka): Update LICENSE file with copyright notice
+- `8ff87be` (2026-02-10, Uladzislau Dubatouka): Merge pull request #14 from vladubase/feat/migration-gz-fortress
+- `818d757` (2026-02-10, uladzislau.dubatouka@innowise.com): feat: migrate to Gazebo Fortress and standardize licenses
+- `5274628` (2026-02-09, Uladzislau Dubatouka): Merge pull request #13 from vladubase/feat/simulation-mesh-update
+- `04d9f09` (2026-02-09, uladzislau.dubatouka@innowise.com): feat: add static LED mesh and optimize docker/launch config
+- `569faa8` (2026-02-08, Uladzislau Dubatouka): Merge pull request #12 from vladubase/feat/simulation-mesh-update
+- `51a04fc` (2026-02-08, uladzislau.dubatouka@innowise.com): fix: resolve package URI paths for Gazebo compatibility
+- `87e981c` (2026-02-08, uladzislau.dubatouka@innowise.com): feat: add optimized base mesh and IMU sensor
+- `3c1338f` (2026-02-08, uladzislau.dubatouka@innowise.com): chore: update gitignore for FreeCAD temporary files
+- `550e877` (2026-02-08, Uladzislau Dubatouka): Merge pull request #11 from vladubase/feature/lidar-integration
+- `cf3f42f` (2026-02-08, uladzislau.dubatouka@innowise.com): feat: added working LiDAR configuration and fixed collision issues
+- `12e994e` (2026-02-07, Uladzislau Dubatouka): Merge pull request #10 from vladubase/ci/add-linters
+- `a81938f` (2026-02-07, uladzislau.dubatouka@innowise.com): fix:pycodestyle version conflict in Dockerfile for ROS Humble
+- `2bdc3ff` (2026-02-07, uladzislau.dubatouka@innowise.com): ci: implement auto-formatting and integrate linters for C++ and Python
+- `2fbb350` (2026-02-07, Uladzislau Dubatouka): Merge pull request #9 from vladubase/feat/wheel-physics
+- `2829096` (2026-02-07, uladzislau.dubatouka@innowise.com): Merge branch 'main' into feat/wheel-physics
+- `9d423b7` (2026-02-07, Uladzislau Dubatouka): Merge pull request #8 from vladubase/fix/ci-docker-build
+- `79c1c24` (2026-02-07, Uladzislau Dubatouka): Merge branch 'main' into fix/ci-docker-build
+- `8cb616b` (2026-02-07, uladzislau.dubatouka@innowise.com): feat: update wheel physics to 10-inch specs and add mesh assets
+- `0a6d8fe` (2026-02-07, uladzislau.dubatouka@innowise.com): fix: correct path to ci script in workflow
+- `7af078a` (2026-02-07, uladzislau.dubatouka@innowise.com): fix: restore correct CI config with buildx and tests
+- `1168812` (2026-02-07, uladzislau.dubatouka@innowise.com): build(ci): add unified local/global CI script and update docker config
+- `55e202e` (2026-02-07, uladzislau.dubatouka@innowise.com): fix(ci): copy src to container and fix permissions
+- `5e6a8ff` (2026-02-07, Uladzislau Dubatouka): Merge pull request #5 from vladubase/docs/restructure
+- `97bf2e2` (2026-02-07, Uladzislau Dubatouka): Merge branch 'main' into docs/restructure
+- `4bc638d` (2026-02-07, Uladzislau Dubatouka): Merge pull request #4 from vladubase/feature/safety-node
+- `59f3f2b` (2026-02-07, uladzislau.dubatouka@innowise.com): docs: update project docs structure, add guides to fast start.
+- `5e4934d` (2026-02-07, uladzislau.dubatouka@innowise.com): feat: Complete safety node with lifecycle launch orchestration.
+- `32ab092` (2026-02-06, Uladzislau Dubatouka): Merge pull request #3 from vladubase/ci/optimize-build
+- `59c8c0b` (2026-02-06, uladzislau.dubatouka@innowise.com): ci: Optimize of building docker containers.
+- `96fe942` (2026-02-06, Uladzislau Dubatouka): Merge pull request #2 from vladubase/docs/add-readme
+- `8ecbee7` (2026-02-06, uladzislau.dubatouka@innowise.com): docs: Add project readme with CI badge.
+- `80b1866` (2026-02-06, Uladzislau Dubatouka): Merge pull request #1 from vladubase/feature/safety-node
+- `3d77aa3` (2026-02-06, uladzislau.dubatouka@innowise.com): feat: Add safety lifecycle node C++ implementation.
+- `4342cbd` (2026-02-06, uladzislau.dubatouka@innowise.com): Setup CI
+- `a363c9b` (2026-02-06, uladzislau.dubatouka@innowise.com): Initial commit: Project structure and Docker environment

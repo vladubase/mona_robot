@@ -235,7 +235,33 @@ TEST_F(TwistMuxSafetyFixture, RecoversFromEmergencyState) {
     EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::MANUAL);
 }
 
-// Test 5: Verify velocity is clamped to NORMAL limits
+// Test 5: Verify safety unblock cannot trip the fatal state-machine guard
+TEST_F(TwistMuxSafetyFixture, SafetyUnblockFromBlockedFallsBackToIdle) {
+    mona_msgs::msg::FdirState ok_msg;
+    ok_msg.current_state = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
+    fdir_pub_->publish(ok_msg);
+    spin_for_milliseconds(50);
+
+    geometry_msgs::msg::Twist teleop_msg;
+    teleop_msg.linear.x = 0.8;
+    teleop_pub_->publish(teleop_msg);
+    spin_for_milliseconds(50);
+    EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::MANUAL);
+
+    mona_msgs::msg::FdirState emergency_msg;
+    emergency_msg.current_state = mona_msgs::msg::FdirState::STATE_EMERGENCY;
+    fdir_pub_->publish(emergency_msg);
+    spin_for_milliseconds(50);
+    EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::BLOCKED_BY_SAFETY);
+
+    fdir_pub_->publish(ok_msg);
+
+    EXPECT_NO_THROW(spin_for_milliseconds(100));
+    EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::IDLE);
+    EXPECT_DOUBLE_EQ(latest_cmd_.linear.x, 0.0);
+}
+
+// Test 6: Verify velocity is clamped to NORMAL limits
 TEST_F(TwistMuxSafetyFixture, RespectsNormalVelocityLimits) {
     // Arrange: Set node parameters for max speed (simulate what YAML would load)
     node_->set_parameter(rclcpp::Parameter("max_speed_normal", 1.0));
@@ -258,7 +284,7 @@ TEST_F(TwistMuxSafetyFixture, RespectsNormalVelocityLimits) {
     EXPECT_LE(latest_cmd_.linear.x, 1.001) << "Velocity exceeded NORMAL maximum limit!";
 }
 
-// Test 6: Verify velocity is strictly clamped when system enters DEGRADED state
+// Test 7: Verify velocity is strictly clamped when system enters DEGRADED state
 TEST_F(TwistMuxSafetyFixture, ClampsVelocityInDegradedMode) {
     // Arrange: Set parameters
     node_->set_parameter(rclcpp::Parameter("max_speed_normal", 1.0));
@@ -281,7 +307,7 @@ TEST_F(TwistMuxSafetyFixture, ClampsVelocityInDegradedMode) {
     EXPECT_LE(latest_cmd_.linear.x, 0.301) << "Velocity exceeded DEGRADED maximum limit!";
 }
 
-// Test 7: Verify EMA (Exponential Moving Average) ramp-up functionality
+// Test 8: Verify EMA (Exponential Moving Average) ramp-up functionality
 TEST_F(TwistMuxSafetyFixture, VerifiesEmaRampUp) {
     // Arrange: Recreate the node with a strong EMA smoothing filter
     node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);

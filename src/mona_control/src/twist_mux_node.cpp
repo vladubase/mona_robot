@@ -235,14 +235,21 @@ void TwistMuxNode::control_loop() {
     if (!smooth_pub_->is_activated()) {return;}
 
     std::lock_guard<std::mutex> lock(mux_mutex_);
-    auto   now               = this->now();
-    double time_since_teleop = (now - last_teleop_time_).seconds();
-    double time_since_nav    = (now - last_nav_time_).seconds();
+    auto   now                = this->now();
+    double time_since_teleop  = (now - last_teleop_time_).seconds();
+    double time_since_nav     = (now - last_nav_time_).seconds();
+    bool   is_safe_idle_state =
+        (current_state_ == TwistMuxState::BLOCKED ||
+        current_state_ == TwistMuxState::IDLE ||
+        current_state_ == TwistMuxState::UCFG);
 
     // Enforce the BLOCKED safety state regardless of incoming inputs
     if (is_safety_blocked_) {
         current_state_ = TwistMuxState::BLOCKED;
         target_vel_    = geometry_msgs::msg::Twist();   // Force zero velocity
+    } else if (is_safe_idle_state) {
+        current_state_ = TwistMuxState::IDLE;
+        target_vel_    = geometry_msgs::msg::Twist();
     } else if ((time_since_teleop > cmd_timeout_) && (time_since_nav > cmd_timeout_)) {
         current_state_ = TwistMuxState::IDLE;
         target_vel_    = geometry_msgs::msg::Twist();

@@ -25,10 +25,12 @@ To guarantee strict adherence to functional safety principles, the monolithic co
   * `/safety_node` (C++ Component, `mona_safety`): The hardware sentinel. It clamps velocities during degraded states, escalates anomalies detected via odometry, and physically opens hardware contactors during an E-STOP. Runs within the `isolated_safety_executor`.
 * **Key Topics:**
   * `/system/health_state` (`mona_msgs/FdirState`): The current system health level broadcasted by FDIR (e.g., `NORMAL`, `DEGRADED`, `PROTECTIVE_STOP`, `EMERGENCY`).
-  * `/hardware/contactor_cmd` (`std_msgs/Bool`): The commanded state of the physical motor power relays.
+  * `/system/safety_state` (`mona_msgs/SafetyState`): The current hardware safety state broadcasted by `safety_node`.
+  * `/hardware/contactors` (`std_msgs/Bool`): The commanded state of the physical motor power relays.
   * `/hardware/motor_cmd` (`geometry_msgs/Twist`): The final velocity vector authorized by the safety gate.
 * **Services:**
   * `/emergency_stop` (`std_srvs/Trigger`): Manually triggers a hard Level 2 E-STOP.
+  * `/emergency_stop_reset` (`std_srvs/Trigger`): Clears the software E-STOP latch when reset conditions are satisfied.
 
 ### 2.2. Control and Multiplexing
 
@@ -37,7 +39,7 @@ Responsible for routing data streams and calculating motion kinematics before pa
   * `/twist_mux_node` (C++ Component, `mona_control`): An intelligent velocity multiplexer. It arbitrates control between the autopilot and a human operator, applies Exponential Moving Average (EMA) smoothing, and preempts Nav2 goals during manual override.
 * **Key Topics:**
   * `/cmd_vel_smoothed` (`geometry_msgs/Twist`): The final, smoothed velocity vector sent to the safety node.
-  * `/mux_status` (`std_msgs/String`): The active multiplexer state (`AUTONOMOUS`, `MANUAL`, `IDLE`, `BLOCKED`).
+  * `/mux_state` (`mona_msgs/TwistMuxState`): The active multiplexer state (`IDLE`, `MANUAL`, `AUTONOMOUS`, `BLOCKED_BY_SAFETY`).
 
 ### 2.3. Manual Control (Teleop)
 * **Nodes:**
@@ -94,21 +96,21 @@ You can debug the robot's logic and simulate hardware behaviors directly from th
 The FDIR Manager continuously broadcasts the system health to the `/system/health_state` topic. While FDIR overrides external manual injection in production, during isolated debugging, you can observe the system's reaction to state escalations.
 
 **Testing Degradation (Auxiliary Node Failure):**
-If a non-critical sensor fails, FDIR transmits `STATE_DEGRADED` (ID: 1). The robot should immediately cap its maximum velocity.
+If a non-critical sensor fails, FDIR transmits `STATE_DEGRADED` (ID: 2). The robot should immediately cap its maximum velocity.
 ```bash
-ros2 topic pub --once /mona_001/system/health_state mona_msgs/msg/FdirState "{state: 1}"
+ros2 topic pub --once /mona_001/system/health_state mona_msgs/msg/FdirState "{current_state: 2, diagnostic_message: 'debug degraded injection'}"
 ```
 
 **Testing E-STOP & Zero Velocity Override (Fatal Failure):**
-Simulate a critical node crash or a physical red button press (STATE_EMERGENCY, ID: 3).
+Simulate a critical node crash or a physical red button press (`STATE_EMERGENCY`, ID: 5).
 ```bash
-ros2 topic pub --once /mona_001/system/health_state mona_msgs/msg/FdirState "{state: 3}"
+ros2 topic pub --once /mona_001/system/health_state mona_msgs/msg/FdirState "{current_state: 5, diagnostic_message: 'debug emergency injection'}"
 ```
 _Expected Result:_ FDIR instantly seizes the control pipeline and publishes a Zero Velocity Override. The `safety_node` halts all operations and the terminal logs `HARDWARE: Contactors OPENED. Motors DEAD.`
 
 **Restoring Operation:**
 ```bash
-ros2 topic pub --once /mona_001/system/health_state mona_msgs/msg/FdirState "{state: 0}"
+ros2 topic pub --once /mona_001/system/health_state mona_msgs/msg/FdirState "{current_state: 1, diagnostic_message: 'debug normal injection'}"
 ```
 
 ### 3.2. Lifecycle Management
@@ -159,7 +161,7 @@ ros2 topic pub --rate 10 /mona_001/cmd_nav geometry_msgs/msg/Twist "{linear: {x:
 
 To verify that the safety logic is successfully triggering physical motor contactors, monitor the hardware command topic:
 ```bash
-ros2 topic echo /mona_001/hardware/contactor_cmd
+ros2 topic echo /mona_001/hardware/contactors
 ```
 - `data: true` -> Relay is closed. Power (24V/48V) is supplied to the motor bridge drivers.
 - `data: false` -> Relay is open. Motors are de-energized (hardware brakes will engage).

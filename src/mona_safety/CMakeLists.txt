@@ -99,8 +99,10 @@ if(BUILD_TESTING)
     rclcpp
     rclcpp_lifecycle
     geometry_msgs
+    nav_msgs
     std_msgs
     std_srvs
+    mona_msgs
   )
 
   ament_add_gtest(test_safety_lifecycle test/test_safety_lifecycle.cpp)

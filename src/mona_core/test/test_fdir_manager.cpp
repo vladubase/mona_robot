@@ -18,6 +18,7 @@
 #include <thread>
 #include <chrono>
 #include <cstdlib>
+#include <stdexcept>
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
@@ -160,6 +161,73 @@ TEST_F(FdirManagerFixture, PessimisticStartupState) {
     // running in this test, the FDIR manager will ping them, timeout, and stay in STARTUP.
     EXPECT_EQ(latest_health_state_, mona_msgs::msg::FdirState::STATE_SYSTEM_STARTUP)
         << "System did not default to pessimistic startup state!";
+}
+
+/**
+ * @class   FdirManagerConfigValidationFixture
+ * @brief   Isolated fixture for fail-fast FDIR configuration validation.
+ */
+class FdirManagerConfigValidationFixture : public ::testing::Test {
+protected:
+    static void SetUpTestSuite() {
+        setenv("ROS_DOMAIN_ID", "16", 1);
+        if (!rclcpp::ok()) {
+            rclcpp::init(0, nullptr);
+        }
+    }
+
+    static void TearDownTestSuite() {
+        if (rclcpp::ok()) {
+            rclcpp::shutdown();
+        }
+    }
+};
+
+TEST_F(FdirManagerConfigValidationFixture, RejectsMissingTrackedComponents) {
+    rclcpp::NodeOptions options;
+
+    EXPECT_THROW(
+    {
+        auto node = std::make_shared<mona_core::FdirManagerNode>(options);
+    },
+        std::runtime_error);
+}
+
+TEST_F(FdirManagerConfigValidationFixture, RejectsEmptyNodeName) {
+    rclcpp::NodeOptions options;
+    options.parameter_overrides(
+    {
+        rclcpp::Parameter("tracked_components", std::vector<std::string>{"broken"}),
+        rclcpp::Parameter("components.broken.enabled", true),
+        rclcpp::Parameter("components.broken.node_name", ""),
+        rclcpp::Parameter("components.broken.tier", "FATAL"),
+        rclcpp::Parameter("components.broken.reset_mechanism", "lifecycle_service")
+    });
+
+    EXPECT_THROW(
+    {
+        auto node = std::make_shared<mona_core::FdirManagerNode>(options);
+    },
+        std::runtime_error);
+}
+
+TEST_F(FdirManagerConfigValidationFixture, RejectsHardwareRelayWithoutResetTopic) {
+    rclcpp::NodeOptions options;
+    options.parameter_overrides(
+    {
+        rclcpp::Parameter("tracked_components", std::vector<std::string>{"relay"}),
+        rclcpp::Parameter("components.relay.enabled", true),
+        rclcpp::Parameter("components.relay.node_name", "relay_node"),
+        rclcpp::Parameter("components.relay.tier", "PRIMARY"),
+        rclcpp::Parameter("components.relay.reset_mechanism", "hardware_relay"),
+        rclcpp::Parameter("components.relay.reset_topic", "")
+    });
+
+    EXPECT_THROW(
+    {
+        auto node = std::make_shared<mona_core::FdirManagerNode>(options);
+    },
+        std::runtime_error);
 }
 
 int main(int argc, char **argv) {

@@ -24,6 +24,8 @@
 #include "lifecycle_msgs/msg/transition.hpp"
 #include "mona_safety/safety_node.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "mona_msgs/msg/safety_state.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_srvs/srv/trigger.hpp"
 
@@ -69,6 +71,7 @@ protected:
         cmd_pub_  = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_smoothed", 10);
         fdir_pub_ = test_node_->create_publisher<mona_msgs::msg::FdirState>(
             "system/health_state", 10);
+        odom_pub_ = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 
         // Service clients for E-STOP interactions
         estop_client_       = test_node_->create_client<std_srvs::srv::Trigger>("emergency_stop");
@@ -89,10 +92,17 @@ protected:
                 latest_contactor_state_ = msg->data;
             });
 
+        safety_state_sub_ = test_node_->create_subscription<mona_msgs::msg::SafetyState>(
+            "system/safety_state", 10,
+            [this](const mona_msgs::msg::SafetyState::SharedPtr msg) {
+                latest_safety_state_ = msg->current_state;
+            });
+
         // Initialize state
         cmd_received_                     = false;
         latest_contactor_state_           = false;
         current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
+        latest_safety_state_              = mona_msgs::msg::SafetyState::NORMAL;
 
         fdir_timer_ = test_node_->create_wall_timer(
             50ms,
@@ -139,6 +149,7 @@ protected:
 
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
     rclcpp::Publisher<mona_msgs::msg::FdirState>::SharedPtr fdir_pub_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
     rclcpp::TimerBase::SharedPtr fdir_timer_;
 
     rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr estop_client_;
@@ -146,9 +157,11 @@ protected:
 
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr motor_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr contactor_sub_;
+    rclcpp::Subscription<mona_msgs::msg::SafetyState>::SharedPtr safety_state_sub_;
 
     mona_msgs::msg::FdirState current_fdir_state_;
     geometry_msgs::msg::Twist latest_motor_cmd_;
+    uint8_t latest_safety_state_;
     bool latest_contactor_state_;
     bool cmd_received_;
 };
@@ -196,7 +209,7 @@ TEST_F(SafetyLogicFixture, EstopServiceOpensContactors) {
 
     // Act: Trigger software E-STOP via service call
     auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-    auto result  = estop_client_->async_send_request(request);
+    estop_client_->async_send_request(request);
     spin_for_milliseconds(200);
 
     // Assert: Hardware contactors must be physically disconnected (false)
@@ -238,4 +251,90 @@ TEST_F(SafetyLogicFixture, EstopResetRestoresOperation) {
 
     // Assert: Contactors should close again, restoring power to drives
     EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after E-STOP Reset!";
+}
+
+// Test 6: Verify FDIR EMERGENCY command latches E-STOP and opens contactors
+TEST_F(SafetyLogicFixture, FdirEmergencyCommandOpensContactors) {
+    spin_for_milliseconds(150);
+
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_EMERGENCY;
+    spin_for_milliseconds(150);
+
+    EXPECT_FALSE(latest_contactor_state_) << "FDIR EMERGENCY did not open contactors!";
+
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 1.0;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0);
+}
+
+// Test 7: Verify PROTECTIVE_STOP keeps power available but suppresses motion
+TEST_F(SafetyLogicFixture, ProtectiveStopSuppressesMotionWithContactorsClosed) {
+    spin_for_milliseconds(150);
+
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+    spin_for_milliseconds(150);
+
+    EXPECT_TRUE(latest_contactor_state_) << "Protective stop should keep contactors closed.";
+
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 1.0;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0);
+}
+
+// Test 8: Verify DEGRADED state clamps velocity to the configured degraded limit
+TEST_F(SafetyLogicFixture, DegradedStateClampsToDegradedLimit) {
+    spin_for_milliseconds(150);
+
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_DEGRADED;
+    spin_for_milliseconds(150);
+
+    EXPECT_TRUE(latest_contactor_state_);
+
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x  = 1.0;
+    input_msg.angular.z = -1.0;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.3);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, -0.3);
+}
+
+// Test 9: Verify RECONFIGURED publishes an immediate stop while keeping power available
+TEST_F(SafetyLogicFixture, ReconfiguredStatePublishesImmediateStop) {
+    spin_for_milliseconds(150);
+
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_RECONFIGURED;
+    spin_for_milliseconds(150);
+
+    EXPECT_TRUE(latest_contactor_state_);
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, 0.0);
+}
+
+// Test 10: Verify physical motion during protective stop escalates to hard E-STOP
+TEST_F(SafetyLogicFixture, OdomMotionDuringProtectiveStopEscalatesEmergency) {
+    spin_for_milliseconds(150);
+
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+    spin_for_milliseconds(150);
+    EXPECT_TRUE(latest_contactor_state_);
+
+    nav_msgs::msg::Odometry odom_msg;
+    odom_msg.twist.twist.linear.x = 0.2;
+    odom_pub_->publish(odom_msg);
+    spin_for_milliseconds(100);
+
+    EXPECT_FALSE(latest_contactor_state_) << "Motion during protective stop did not trip E-STOP.";
+    EXPECT_EQ(latest_safety_state_, mona_msgs::msg::SafetyState::EMERGENCY);
 }
