@@ -2,11 +2,12 @@ x-mona-base: &mona_base
   build:
     context: .
     dockerfile: Dockerfile
-    network: host
+    # Host-specific values come from scripts/detect_host.bash.
     args:
       USERNAME: ${USER:-mona_dev}
-      USER_UID: ${UID:-1000}
-      USER_GID: ${GID:-1000}
+      USER_UID: ${HOST_UID:-${UID:-1000}}
+      USER_GID: ${HOST_GID:-${GID:-1000}}
+      MESA_PPA: ${MESA_PPA:-}
   image: mona_robot:humble
 
   network_mode: host
@@ -35,6 +36,12 @@ x-mona-base: &mona_base
   
   devices:
     - /dev/dri:/dev/dri
+
+  # Numeric host group IDs that own /dev/dri. Group names resolve to different
+  # IDs across distributions, so names alone would leave the GPU inaccessible.
+  group_add:
+    - ${HOST_VIDEO_GID:-video}
+    - ${HOST_RENDER_GID:-render}
 
 
 services:
