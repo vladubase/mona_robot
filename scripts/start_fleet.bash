@@ -41,6 +41,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Detect host-specific values (GPU vendor, /dev/dri group IDs) for Docker Compose.
+source "$(dirname "$0")/detect_host.bash"
+
 # Force clean FastDDS shared memory to prevent deadlocks
 rm -rf /dev/shm/fastrtps* /dev/shm/ros2* /dev/shm/env_shared* 2>/dev/null || true
 
