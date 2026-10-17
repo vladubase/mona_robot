@@ -34,7 +34,8 @@
   <xacro:property name="base_length"    value="1.25"/>
   <xacro:property name="base_width"     value="0.80"/>
   <xacro:property name="base_height"    value="0.30"/>
-  <xacro:property name="base_weight"    value="200.0"/>
+  <!-- Chassis mass without wheels: estimated self-weight 350 kg minus 4 x 10 kg wheels -->
+  <xacro:property name="base_weight"    value="310.0"/>
 
   <xacro:property name="road_clearance" value="0.02"/>
 
@@ -162,8 +163,10 @@
       <wheelbase>${wheel_base_x}</wheelbase>
       <wheel_radius>${wheel_radius}</wheel_radius>
 
-      <min_acceleration>-2.5</min_acceleration>
-      <max_acceleration>2.5</max_acceleration>
+      <!-- Design acceleration of the drivetrain sizing (unladen); load-dependent limits
+           are applied by the motion control layer -->
+      <min_acceleration>-1.0</min_acceleration>
+      <max_acceleration>1.0</max_acceleration>
 
       <topic>/$(arg namespace)/hardware/motor_cmd</topic>
     </plugin>
