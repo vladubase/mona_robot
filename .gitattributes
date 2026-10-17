@@ -1,0 +1,18 @@
+# ==============================================================================
+# .gitattributes
+# Purpose: Store large binary assets in Git LFS so that the repository history
+#          stays small and clones remain fast. Text-based sources are excluded.
+# ==============================================================================
+
+# --- 3D meshes and CAD sources --- #
+*.stl       filter=lfs diff=lfs merge=lfs -text
+*.STL       filter=lfs diff=lfs merge=lfs -text
+*.dae       filter=lfs diff=lfs merge=lfs -text
+*.FCStd     filter=lfs diff=lfs merge=lfs -text
+
+# --- Serialized SLAM maps (slam_toolbox) --- #
+*.posegraph filter=lfs diff=lfs merge=lfs -text
+src/mona_core/maps/*.data filter=lfs diff=lfs merge=lfs -text
+
+# --- Media --- #
+*.mp4       filter=lfs diff=lfs merge=lfs -text
