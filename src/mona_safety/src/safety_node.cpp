@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <unordered_map>
 #include "mona_safety/safety_node.hpp"
 
@@ -24,26 +25,37 @@
 namespace mona_safety
 {
 SafetyNode::SafetyNode(const rclcpp::NodeOptions &options)
-    : rclcpp_lifecycle::LifecycleNode("safety_node", options), diagnostic_updater_(this),
-      current_state_(SafetyState::NORMAL) {
-    this->declare_parameter("max_speed_normal", 1.0);
-    this->declare_parameter("max_speed_degraded", 0.3);
+    : rclcpp_lifecycle::LifecycleNode("safety_node", options), diagnostic_updater_(this) {
+    // The node starts in PROTECTIVE_STOP (header default); FDIR clearance is required for motion.
+    this->declare_parameter("max_speed_normal", 1.0);  // [m/s]
+    this->declare_parameter("max_speed_degraded", 0.3);  // [m/s]
+    this->declare_parameter("max_angular_speed_normal", 1.0);  // [rad/s]
+    this->declare_parameter("max_angular_speed_degraded", 0.3);  // [rad/s]
 
     diagnostic_updater_.setHardwareID("mona_base_controller");
     diagnostic_updater_.add("Safety Node", this, &SafetyNode::produce_diagnostics);
 }
 
 SafetyNode::~SafetyNode() {
-    // 1. Actuate hardware safety fallback (Fail-Safe) prior to memory teardown
-    set_hardware_contactors(false);
+    // A destructor must not let an exception escape: that would call std::terminate
+    // without a controlled shutdown. Failures are reported on stderr, because the
+    // ROS logging infrastructure may itself be the source of the exception.
+    try {
+        // 1. Actuate hardware safety fallback (Fail-Safe) prior to memory teardown
+        set_hardware_contactors(false);
 
-    // 2. CRITICAL FAULT MITIGATION: Terminate active service servers to prevent
-    // incoming E-STOP or Reset network requests from accessing a dying component instance.
-    if (srv_estop_) {
-        srv_estop_.reset();
-    }
-    if (srv_estop_reset_) {
-        srv_estop_reset_.reset();
+        // 2. CRITICAL FAULT MITIGATION: Terminate active service servers to prevent
+        // incoming E-STOP or Reset network requests from accessing a dying component instance.
+        if (srv_estop_) {
+            srv_estop_.reset();
+        }
+        if (srv_estop_reset_) {
+            srv_estop_reset_.reset();
+        }
+    } catch (const std::exception &e) {
+        std::fprintf(stderr, "[safety_node] Exception during destruction: %s\n", e.what());
+    } catch (...) {
+        std::fprintf(stderr, "[safety_node] Unknown exception during destruction.\n");
     }
 }
 
@@ -54,6 +66,7 @@ std::string SafetyNode::safety_state_to_string(SafetyState state) {
         case mona_msgs::msg::TwistMuxState::MANUAL:            mux_str = "MANUAL"; break;
         case mona_msgs::msg::TwistMuxState::AUTONOMOUS:        mux_str = "AUTONOMOUS"; break;
         case mona_msgs::msg::TwistMuxState::BLOCKED_BY_SAFETY: mux_str = "BLOCKED"; break;
+        default:                                               mux_str = "UNKNOWN"; break;
     }
 
     switch (state) {
@@ -66,8 +79,29 @@ std::string SafetyNode::safety_state_to_string(SafetyState state) {
 }
 
 CallbackReturn SafetyNode::on_configure(const rclcpp_lifecycle::State &) {
-    max_speed_normal_   = this->get_parameter("max_speed_normal").as_double();
-    max_speed_degraded_ = this->get_parameter("max_speed_degraded").as_double();
+    max_speed_normal_           = this->get_parameter("max_speed_normal").as_double();
+    max_speed_degraded_         = this->get_parameter("max_speed_degraded").as_double();
+    max_angular_speed_normal_   = this->get_parameter("max_angular_speed_normal").as_double();
+    max_angular_speed_degraded_ = this->get_parameter("max_angular_speed_degraded").as_double();
+
+    // Reject an invalid limit set: each limit must be finite and positive, and the
+    // DEGRADED limit must not exceed the NORMAL limit. A failed configuration keeps
+    // the node unconfigured, which FDIR detects and reports.
+    const auto is_valid_pair = [](double normal, double degraded) {
+            return std::isfinite(normal) && std::isfinite(degraded) &&
+                   normal > 0.0 && degraded > 0.0 && degraded <= normal;
+        };
+    if (!is_valid_pair(max_speed_normal_, max_speed_degraded_) ||
+        !is_valid_pair(max_angular_speed_normal_, max_angular_speed_degraded_))
+    {
+        RCLCPP_FATAL(
+            get_logger(),
+            "Invalid velocity limits (linear %.3f/%.3f m/s, angular %.3f/%.3f rad/s). "
+            "Configuration rejected.",
+            max_speed_normal_, max_speed_degraded_,
+            max_angular_speed_normal_, max_angular_speed_degraded_);
+        return CallbackReturn::FAILURE;
+    }
 
     // Initialize Reentrant group to prevent deadlocks during blocking service calls
     auto callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
@@ -228,13 +262,39 @@ void SafetyNode::smoothed_vel_callback(const geometry_msgs::msg::Twist::SharedPt
         return;
     }
 
-    geometry_msgs::msg::Twist clipped_msg = *msg;
-    double current_limit =
-        (current_state_ == SafetyState::DEGRADED) ? max_speed_degraded_ : max_speed_normal_;
+    // A non-finite component (NaN, Inf) cannot be limited meaningfully: comparisons
+    // with NaN are always false, so it would pass every clamp. Such a command is
+    // replaced by a stop.
+    if (!std::isfinite(msg->linear.x) || !std::isfinite(msg->linear.y) ||
+        !std::isfinite(msg->angular.z))
+    {
+        RCLCPP_ERROR_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "Non-finite velocity command rejected. Publishing stop.");
+        publish_stop();
+        return;
+    }
 
-    clipped_msg.linear.x  = std::clamp(clipped_msg.linear.x, -current_limit, current_limit);
-    clipped_msg.linear.y  = std::clamp(clipped_msg.linear.y, -current_limit, current_limit);
-    clipped_msg.angular.z = std::clamp(clipped_msg.angular.z, -current_limit, current_limit);
+    const bool   is_degraded   = (current_state_ == SafetyState::DEGRADED);
+    const double linear_limit  = is_degraded ? max_speed_degraded_ : max_speed_normal_;
+    const double angular_limit =
+        is_degraded ? max_angular_speed_degraded_ : max_angular_speed_normal_;
+
+    // Planar base: only linear.x, linear.y and angular.z are forwarded.
+    geometry_msgs::msg::Twist clipped_msg;
+    clipped_msg.linear.x  = msg->linear.x;
+    clipped_msg.linear.y  = msg->linear.y;
+    clipped_msg.angular.z = std::clamp(msg->angular.z, -angular_limit, angular_limit);
+
+    // Limit the magnitude of the planar velocity vector. A holonomic (mecanum) base
+    // can move diagonally, so limiting x and y separately would allow sqrt(2) times
+    // the limit. Uniform scaling preserves the commanded direction.
+    const double linear_speed = std::hypot(clipped_msg.linear.x, clipped_msg.linear.y);
+    if (linear_speed > linear_limit) {
+        const double scale    = linear_limit / linear_speed;
+        clipped_msg.linear.x *= scale;
+        clipped_msg.linear.y *= scale;
+    }
 
     motor_pub_->publish(clipped_msg);
 }
@@ -322,6 +382,10 @@ void SafetyNode::health_state_callback(const mona_msgs::msg::FdirState::SharedPt
 
         default:
             // 7. UNKNOWN STATE (Global fallback - power off everything)
+            // Motion is halted as well, so that no velocity command passes while the
+            // health state is undefined (e.g. interface version mismatch).
+            current_state_ = SafetyState::PROTECTIVE_STOP;
+            publish_stop();
             set_hardware_contactors(false);
             if (state_changed) {
                 RCLCPP_ERROR(
@@ -373,16 +437,27 @@ void SafetyNode::estop_callback(
 void SafetyNode::estop_reset_callback(
     const std::shared_ptr<std_srvs::srv::Trigger::Request>,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    if (!is_processing_allowed_) {
+        response->success = false;
+        response->message = "Reset rejected: Safety Node is not active.";
+        return;
+    }
+
     if (current_state_ == SafetyState::EMERGENCY || e_stop_active_) {
-        current_state_ = SafetyState::NORMAL;  // Reset safety state
+        // A reset releases the E-STOP latch only and never enables motion by itself
+        // (ISO 13850, ISO 14118). The node enters PROTECTIVE_STOP with the contactors
+        // open; the next FDIR health state decides whether operation may resume.
         e_stop_active_ = false;
-        set_hardware_contactors(true);
+        current_state_ = SafetyState::PROTECTIVE_STOP;
+        publish_stop();
+        set_hardware_contactors(false);
 
         publish_global_state();
 
-        RCLCPP_INFO(this->get_logger(), "Safety system RESET. Ready for operation.");
+        RCLCPP_INFO(
+            this->get_logger(), "E-STOP latch released. Awaiting FDIR clearance.");
         response->success = true;
-        response->message = "System recovered from EMERGENCY. Manual control enabled.";
+        response->message = "E-STOP latch released. PROTECTIVE_STOP until FDIR clearance.";
     } else {
         response->success = false;
         response->message = "Reset ignored: System is not in EMERGENCY state.";
