@@ -2,7 +2,6 @@ name: CI
 
 permissions:
   contents: read
-  checks: write
 
 on:
   push:
@@ -25,20 +24,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04]
     name: Build & Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Write access only for this job: the JUnit report action publishes a check run
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # 1. Setup Docker Buildx (Required for caching)
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # 2. Build Docker Image via Buildx with caching
       - name: Build Docker Image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: Dockerfile
@@ -71,7 +74,7 @@ jobs:
       
       # 4. Publish Test Reports to the GitHub UI
       - name: Publish Test Report
-        uses: mikepenz/action-junit-report@v6
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         if: success() || failure() # Step must execute even if tests fail
         with:
           report_paths: 'build/**/test_results/**/*.xml'
@@ -79,7 +82,7 @@ jobs:
       
       # 5. Upload coverage report to Codecov
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         if: env.CODECOV_TOKEN != null # Executes only if the CODECOV_TOKEN secret is provisioned
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
