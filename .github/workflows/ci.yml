@@ -2,7 +2,6 @@ name: CI
 
 permissions:
   contents: read
-  checks: write
 
 on:
   push:
@@ -28,6 +27,10 @@ jobs:
         os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04]
     name: Build & Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Write access only for this job: the JUnit report action publishes a check run
+    permissions:
+      contents: read
+      checks: write
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
