@@ -317,3 +317,34 @@ TEST_F(TwistMuxSafetyFixture, VerifiesEmaRampUp) {
         latest_cmd_.linear.x, 0.25,
         0.15) << "EMA filter is not smoothing the acceleration!";
 }
+
+// Test 8: Verify that navigation commands during the manual takeover lock never crash
+// the multiplexer: the state becomes IDLE and zero velocity is commanded.
+TEST_F(TwistMuxSafetyFixture, NavigationDuringTakeoverLockCommandsZero) {
+    auto nav_pub = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_nav", 10);
+    mona_msgs::msg::FdirState health_msg;
+    health_msg.current_state = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
+    fdir_pub_->publish(health_msg);
+    spin_for_milliseconds(150);
+
+    // Arrange: A short manual command, then the operator releases the stick. After the
+    // command timeout (0.5 s) and before the takeover lock expires (2.0 s), the
+    // multiplexer is IDLE.
+    geometry_msgs::msg::Twist teleop_msg;
+    teleop_msg.linear.x = 0.5;
+    teleop_pub_->publish(teleop_msg);
+    spin_for_milliseconds(800);
+
+    // Act: Navigation commands arrive while the takeover lock is still active
+    geometry_msgs::msg::Twist nav_msg;
+    nav_msg.linear.x = 0.3;
+    for (int i = 0; i < 10; ++i) {
+        nav_pub->publish(nav_msg);
+        spin_for_milliseconds(30);
+    }
+
+    // Assert: No exception escaped the control loop; the output is zero and the state IDLE
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_cmd_.linear.x, 0.0) << "Navigation command passed the takeover lock!";
+    EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::IDLE);
+}
