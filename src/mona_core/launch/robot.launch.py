@@ -49,6 +49,7 @@ def generate_launch_description():
     pkg_mona_perception = get_package_share_directory("mona_perception")
 
     file_fdir_policy = os.path.join(pkg_mona_core, "configs", "fdir_policy.yaml")
+    file_safety_params = os.path.join(pkg_mona_core, "configs", "safety_params.yaml")
     file_ekf_config = os.path.join(pkg_mona_core, "configs", "ekf.yaml")
 
     file_xacro = os.path.join(pkg_mona_description, "urdf", "mona.urdf.xacro")
@@ -262,7 +263,7 @@ def generate_launch_description():
                 package="mona_safety",
                 plugin="mona_safety::SafetyNode",
                 name="safety_node",
-                parameters=[{"use_sim_time": use_sim_time}],
+                parameters=[{"use_sim_time": use_sim_time}, file_safety_params],
             )
         ],
     )

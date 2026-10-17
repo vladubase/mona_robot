@@ -12,17 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-safety_node:
+# The key matches the safety node in any robot namespace (e.g. /mona_001/safety_node).
+# Every value is validated in on_configure; an invalid set keeps the node UNCONFIGURED.
+/**/safety_node:
   ros__parameters:
-    # --- Watchdog Settings --- #
-    command_timeout:      0.5     # [sec] Trigger STOP if no commands are received for X seconds
-    server_timeout:       2.0     # [sec] Trigger STOP if the server is unresponsive (no heartbeat)
-    manual_takeover_time: 5.0     # [sec] Time to wait after the last manual input before returning control to the server
-    
-    # --- Velocity Limits --- #
-    max_speed_normal:     1.0     # [m/s] Maximum allowed linear velocity
-    max_speed_degraded:   0.3     # [m/s] Maximum velocity when system performance is degraded
-    
-    # --- System Health --- #
-    min_lidar_freq:       9.0     # [Hz]  Minimum acceptable LiDAR frequency. Drops below trigger an ERROR
-    cpu_warning_thresh:   85.0    # [%]   CPU usage warning threshold (requires external system monitor)
+    # --- Velocity limits --- #
+    max_speed_normal:             1.0     # [m/s]   Planar speed limit (vector magnitude)
+    max_speed_degraded:           0.3     # [m/s]   Planar speed limit in DEGRADED
+    max_angular_speed_normal:     1.0     # [rad/s] Yaw rate limit
+    max_angular_speed_degraded:   0.3     # [rad/s] Yaw rate limit in DEGRADED
+
+    # --- Watchdog (monotonic wall clock) --- #
+    fdir_state_timeout:           0.3     # [s] No FDIR health state (10 Hz) -> PROTECTIVE_STOP, latched until reset
+    command_timeout:              0.5     # [s] No velocity command -> zero velocity until commands resume
+    odom_timeout:                 1.0     # [s] No odometry during a supervised stop -> standstill unconfirmed
+
+    # --- Time-monitored controlled stop (SS1-t, IEC 61800-5-2) --- #
+    # Permitted stopping time = max(v / stop_deceleration, w / stop_angular_deceleration) + stop_time_margin.
+    # Motion beyond it in PROTECTIVE_STOP escalates to EMERGENCY.
+    stop_deceleration:            1.0     # [m/s^2]   Design deceleration of the drivetrain (unladen)
+    stop_angular_deceleration:    1.0     # [rad/s^2] Design yaw deceleration (assumption, to be derived from the drivetrain)
+    stop_time_margin:             0.5     # [s]       Command latency, drive response and odometry delay
+    standstill_linear_speed:      0.05    # [m/s]     Planar speed regarded as standstill
+    standstill_angular_speed:     0.05    # [rad/s]   Yaw rate regarded as standstill
+    standstill_debounce_samples:  3       # Consecutive moving odometry samples that confirm a violation
