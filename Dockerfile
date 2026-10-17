@@ -8,10 +8,13 @@ ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
 # 2. System and ROS 2 Dependencies Installation
-# Includes Kisak PPA for updated Mesa drivers required by modern Linux kernels
+# Optional Mesa PPA for GPUs that are newer than the Mesa release of the base
+# distribution. scripts/detect_host.bash selects it per host GPU vendor; an
+# empty value keeps the distribution Mesa.
+ARG MESA_PPA=""
 RUN apt-get update && apt-get install -y \
     software-properties-common curl sudo git \
-    && add-apt-repository ppa:kisak/kisak-mesa -y \
+    && if [ -n "$MESA_PPA" ]; then add-apt-repository -y "$MESA_PPA"; fi \
     && apt-get update && apt-get install -y \
     build-essential cmake python3-colcon-common-extensions \
     # Quality Assurance and Static Code Analysis Tools

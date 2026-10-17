@@ -16,7 +16,12 @@
 
 COMPOSE ?= docker compose
 
-.PHONY: build rebuild up up-gpu down logs ps shell format ci help \
+# Host-specific values (user IDs, GPU vendor, /dev/dri group IDs and Mesa source)
+# are detected on every invocation and exported to Docker Compose.
+HOST_ENV := $(shell ./scripts/detect_host.bash)
+$(foreach kv,$(HOST_ENV),$(eval export $(kv)))
+
+.PHONY: build rebuild up up-gpu down logs ps shell format ci doctor help \
 	b r u ug d l p s f c
 
 help: ## Show available Makefile targets
@@ -55,6 +60,15 @@ format: ## Run auto-formatting inside the dev container
 ci: ## Run CI checks inside the dev container
 	$(COMPOSE) up -d dev
 	$(COMPOSE) exec dev bash -c "./scripts/run_ci_checks.bash"
+
+doctor: ## Show detected host values and verify GPU acceleration in the container
+	@./scripts/detect_host.bash
+	@$(COMPOSE) run --rm --no-deps dev bash -c '\
+		glxinfo -B 2>/dev/null | grep -E "OpenGL renderer|Accelerated"; \
+		if [ "$(GPU_VENDOR)" != "none" ] && glxinfo -B 2>/dev/null | grep -q llvmpipe; then \
+			echo "[FAIL] Software rendering (llvmpipe) although host GPU is $(GPU_VENDOR)"; \
+			exit 1; \
+		fi'
 
 world: ## Start Gazebo world (run on host)
 	./scripts/start_world.bash
