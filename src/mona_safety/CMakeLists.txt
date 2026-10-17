@@ -99,6 +99,7 @@ if(BUILD_TESTING)
     rclcpp
     rclcpp_lifecycle
     geometry_msgs
+    nav_msgs
     std_msgs
     std_srvs
   )
@@ -112,6 +113,12 @@ if(BUILD_TESTING)
   mona_enable_strict_warnings(test_safety_logic)
   target_link_libraries(test_safety_logic safety_component)
   ament_target_dependencies(test_safety_logic SYSTEM ${TEST_DEPS})
+
+  # ROS-independent logic test (synthetic time)
+  ament_add_gtest(test_stop_monitor test/test_stop_monitor.cpp)
+  mona_enable_strict_warnings(test_stop_monitor)
+  target_include_directories(test_stop_monitor PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
   # Execute Linters
   # C++ static analysis and style formatting

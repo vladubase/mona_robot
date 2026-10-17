@@ -28,6 +28,7 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_srvs/srv/trigger.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 using namespace std::chrono_literals;
 
@@ -306,12 +307,19 @@ TEST_F(SafetyLogicFixture, EstopResetRequiresFdirClearance) {
     ASSERT_TRUE(cmd_received_);
     EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR clearance!";
 
-    // Act: FDIR clearance resumes
+    // Act: FDIR clearance resumes after a silence longer than fdir_state_timeout
     fdir_timer_->reset();
     spin_for_milliseconds(150);
 
-    // Assert: Power is restored only after FDIR clearance
-    EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after FDIR clearance!";
+    // Assert: The loss of supervision is latched; FDIR clearance alone restores nothing
+    EXPECT_FALSE(latest_contactor_state_) << "Latched loss of supervision released by FDIR!";
+
+    // Act: Reset with FDIR supervision present
+    estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+    spin_for_milliseconds(200);
+
+    // Assert: Power is restored only after a reset and FDIR clearance
+    EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after reset and clearance!";
 }
 
 // Test 7: Verify that an unknown FDIR state halts motion and opens the contactors
@@ -334,4 +342,127 @@ TEST_F(SafetyLogicFixture, UnknownFdirStateHaltsMotion) {
     EXPECT_DOUBLE_EQ(
         latest_motor_cmd_.linear.x,
         0.0) << "Motion allowed in an undefined FDIR state!";
+}
+
+// Test 8: Silence of FDIR latches PROTECTIVE_STOP until a reset
+TEST_F(SafetyLogicFixture, FdirSilenceLatchesProtectiveStop) {
+    spin_for_milliseconds(150);
+    ASSERT_TRUE(latest_contactor_state_);
+
+    // Act: FDIR stops publishing for longer than fdir_state_timeout (0.3 s)
+    fdir_timer_->cancel();
+    spin_for_milliseconds(400);
+
+    // Assert: Motion commands are replaced by a stop
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 0.5;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR supervision!";
+
+    // Act: FDIR resumes with SOFTWARE_OK
+    fdir_timer_->reset();
+    spin_for_milliseconds(200);
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    // Assert: The loss of supervision stays latched (no automatic restart)
+    EXPECT_DOUBLE_EQ(
+        latest_motor_cmd_.linear.x,
+        0.0) << "Automatic restart after supervision loss!";
+
+    // Act: Reset, then FDIR clearance
+    estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+    spin_for_milliseconds(200);
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    // Assert: Motion is permitted again
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5) << "Motion not restored after reset!";
+}
+
+// Test 9: Regular FDIR states do not trip the watchdog
+TEST_F(SafetyLogicFixture, RegularFdirStatesKeepOperation) {
+    spin_for_milliseconds(1000);
+
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 0.5;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_TRUE(latest_contactor_state_);
+    EXPECT_DOUBLE_EQ(
+        latest_motor_cmd_.linear.x,
+        0.5) << "Watchdog tripped with regular FDIR states!";
+}
+
+// Test 10: A stale command stream is replaced by zero velocity
+TEST_F(SafetyLogicFixture, StaleCommandStreamPublishesStop) {
+    spin_for_milliseconds(150);
+
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 0.5;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+    ASSERT_TRUE(cmd_received_);
+    ASSERT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5);
+
+    // Act: No further command for longer than command_timeout (0.5 s)
+    spin_for_milliseconds(700);
+
+    // Assert: The last command is not held; zero velocity is published
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Stale command was held!";
+    EXPECT_TRUE(latest_contactor_state_) << "A stale command stream changed the safety state!";
+}
+
+// Test 11: Motion beyond the permitted stopping time in PROTECTIVE_STOP escalates
+TEST_F(SafetyLogicFixture, MotionAfterStoppingTimeEscalatesToEmergency) {
+    // Arrange: Odometry reports a constant 0.3 m/s (the robot does not brake)
+    auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+    auto odom_timer = test_node_->create_wall_timer(
+        20ms, [odom_pub]() {
+            nav_msgs::msg::Odometry odom;
+            odom.twist.twist.linear.x = 0.3;
+            odom_pub->publish(odom);
+        });
+    spin_for_milliseconds(300);
+    ASSERT_TRUE(latest_contactor_state_);
+
+    // Act: FDIR commands PROTECTIVE_STOP; permitted stopping time 0.3 / 1.0 + 0.5 = 0.8 s
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+    spin_for_milliseconds(500);
+
+    // Assert: Braking time is granted; no escalation yet
+    EXPECT_TRUE(latest_contactor_state_) << "Escalated before the permitted stopping time!";
+
+    spin_for_milliseconds(700);
+
+    // Assert: Standstill not reached in time: EMERGENCY with open contactors
+    EXPECT_FALSE(latest_contactor_state_) << "Motion after the stopping time was not escalated!";
+}
+
+// Test 12: A controlled stop within the permitted stopping time does not escalate
+TEST_F(SafetyLogicFixture, ControlledStopWithinTimeDoesNotEscalate) {
+    // Arrange: Odometry reports 0.3 m/s until the stop, then standstill
+    auto moving     = std::make_shared<bool>(true);
+    auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+    auto odom_timer = test_node_->create_wall_timer(
+        20ms, [odom_pub, moving]() {
+            nav_msgs::msg::Odometry odom;
+            odom.twist.twist.linear.x = *moving ? 0.3 : 0.0;
+            odom_pub->publish(odom);
+        });
+    spin_for_milliseconds(300);
+    ASSERT_TRUE(latest_contactor_state_);
+
+    // Act: PROTECTIVE_STOP; the robot reaches standstill after 0.4 s (< 0.8 s)
+    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+    spin_for_milliseconds(400);
+    *moving = false;
+    spin_for_milliseconds(1000);
+
+    // Assert: No escalation; the contactors stay closed for the controlled stop
+    EXPECT_TRUE(latest_contactor_state_) << "A controlled stop within time was escalated!";
 }

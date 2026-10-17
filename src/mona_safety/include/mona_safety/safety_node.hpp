@@ -17,6 +17,7 @@
 #define MONA_SAFETY__SAFETY_NODE_HPP_
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <string>
 
@@ -31,6 +32,7 @@
 #include "mona_msgs/msg/safety_diagnostics.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "diagnostic_updater/diagnostic_updater.hpp"
+#include "mona_safety/stop_monitor.hpp"
 
 namespace mona_safety
 {
@@ -80,6 +82,9 @@ private:
         const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
         std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
+    void watchdog_callback();
+    void handle_stop_violation(const char *reason);
+
     void set_hardware_contactors(bool enable);
     void publish_stop();
     void publish_global_state();
@@ -89,6 +94,8 @@ private:
     rclcpp::Subscription<mona_msgs::msg::FdirState>::SharedPtr health_sub_;
     rclcpp::Subscription<mona_msgs::msg::TwistMuxState>::SharedPtr mux_state_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+
+    rclcpp::TimerBase::SharedPtr watchdog_timer_;
 
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_estop_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_estop_reset_;
@@ -110,6 +117,34 @@ private:
     double max_speed_degraded_{0.0};  // [m/s]   planar linear speed limit, DEGRADED
     double max_angular_speed_normal_{0.0};  // [rad/s] yaw rate limit
     double max_angular_speed_degraded_{0.0};  // [rad/s] yaw rate limit, DEGRADED
+
+    // Watchdog: input freshness is measured on the monotonic wall clock. Simulation
+    // time stops together with a frozen simulator and could never reveal it.
+    using SteadyClock = std::chrono::steady_clock;
+    static constexpr std::chrono::milliseconds WATCHDOG_PERIOD{20};
+
+    std::chrono::duration<double> fdir_state_timeout_{0.0};  // [s]
+    std::chrono::duration<double> command_timeout_{0.0};  // [s]
+    std::chrono::duration<double> odom_timeout_{0.0};  // [s]
+
+    // Reception times; each supervision is armed by the first message of its input
+    SteadyClock::time_point last_fdir_rx_{};
+    SteadyClock::time_point last_command_rx_{};
+    SteadyClock::time_point last_odom_rx_{};
+    bool fdir_received_{false};
+    bool command_received_{false};
+    bool odom_received_{false};
+
+    // Latched loss of FDIR supervision; released only by emergency_stop_reset
+    bool supervision_lost_{false};
+    bool command_stale_{false};
+
+    // Latest measured motion from odometry
+    double measured_linear_speed_{0.0};  // [m/s]   planar speed
+    double measured_angular_speed_{0.0};  // [rad/s] yaw rate magnitude
+
+    // Time-monitored controlled stop (SS1-t) in PROTECTIVE_STOP and EMERGENCY
+    StopMonitor stop_monitor_{StopMonitorConfig{}};
 };
 }  // namespace mona_safety
 
