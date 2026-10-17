@@ -103,22 +103,21 @@ CallbackReturn SafetyNode::on_configure(const rclcpp_lifecycle::State &) {
         return CallbackReturn::FAILURE;
     }
 
-    // Initialize Reentrant group to prevent deadlocks during blocking service calls
-    auto callback_group = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-    rclcpp::SubscriptionOptions sub_opts;
-    sub_opts.callback_group = callback_group;
-
+    // All callbacks of this node (subscriptions, services and the diagnostic updater
+    // timer) share the node's default callback group, which is MutuallyExclusive: the
+    // safety state machine is executed strictly sequentially, without data races on
+    // its state, even in a multi-threaded executor. No callback performs a blocking call.
     smooth_sub_ = create_subscription<geometry_msgs::msg::Twist>(
         "cmd_vel_smoothed", 10,
-        std::bind(&SafetyNode::smoothed_vel_callback, this, std::placeholders::_1), sub_opts);
+        std::bind(&SafetyNode::smoothed_vel_callback, this, std::placeholders::_1));
 
     health_sub_ = create_subscription<mona_msgs::msg::FdirState>(
         "system/health_state", 10,
-        std::bind(&SafetyNode::health_state_callback, this, std::placeholders::_1), sub_opts);
+        std::bind(&SafetyNode::health_state_callback, this, std::placeholders::_1));
 
     mux_state_sub_ = create_subscription<mona_msgs::msg::TwistMuxState>(
         "mux_state", 10,
-        std::bind(&SafetyNode::mux_state_callback, this, std::placeholders::_1), sub_opts);
+        std::bind(&SafetyNode::mux_state_callback, this, std::placeholders::_1));
 
     // Subscribe to odometry to monitor actual physical stops
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
