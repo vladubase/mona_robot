@@ -72,6 +72,12 @@ if ! rm -rf build/* install/* log/*; then
     exit 1
 fi
 
+# The container entrypoint sources the prebuilt workspace of the image; after
+# cleaning, its paths no longer exist. The environment is rebuilt from the ROS
+# underlay only, so the build cannot resolve anything from a previous overlay.
+unset AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH
+source /opt/ros/humble/setup.bash
+
 # ------------------------------------------------------------------------------
 # 3. Build Packages
 # ------------------------------------------------------------------------------
