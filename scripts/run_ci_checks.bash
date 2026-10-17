@@ -50,8 +50,11 @@ echo -e "${YELLOW}[1/4] Running Static Analysis...${NC}"
 # Python Linting (Flake8)
 echo -e "${BLUE}[CI] Running Flake8 linter...${NC}"
 if python3 -m flake8 --version &> /dev/null; then
-    # Check for critical errors (syntax, undefined variables)
-    python3 -m flake8 src/ scripts/ --count --select=E9,F63,F7,F82 --show-source --statistics
+    # Check for critical errors (syntax, undefined variables); any finding fails the pipeline
+    if ! python3 -m flake8 src/ scripts/ --count --select=E9,F63,F7,F82 --show-source --statistics; then
+        echo -e "${RED}[ERROR] Python linting failed (Flake8).${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}[OK] Python linting passed (Flake8).${NC}"
 else
     echo -e "${RED}[ERROR] Flake8 linter not found. Run 'pip install flake8' locally.${NC}"
