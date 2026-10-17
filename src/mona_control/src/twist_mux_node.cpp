@@ -159,9 +159,10 @@ void TwistMuxNode::publish_state(TwistMuxState state) {
             msg.current_state = mona_msgs::msg::TwistMuxState::AUTONOMOUS;
             break;
         case TwistMuxState::BLOCKED:
+        case TwistMuxState::UCFG:  // An unconfigured multiplexer never permits motion
             msg.current_state = mona_msgs::msg::TwistMuxState::BLOCKED_BY_SAFETY;
             break;
-        default:
+        default:  // Out-of-range value (memory corruption): report the safe state
             msg.current_state = mona_msgs::msg::TwistMuxState::BLOCKED_BY_SAFETY;
             break;
     }
@@ -248,17 +249,30 @@ void TwistMuxNode::control_loop() {
         target_vel_    = geometry_msgs::msg::Twist();
     } else {
         // Active control state routing
-        if (current_state_ == TwistMuxState::MANUAL) {
-            target_vel_ = last_teleop_msg_;
-        } else if (current_state_ == TwistMuxState::AUTONOMOUS) {
-            target_vel_ = last_nav_msg_;
-        } else {
-            // FATAL FAULT: State machine corrupted.
-            // Throwing an exception to trigger FDIR Hardware Recovery and Zero Velocity Override.
-            RCLCPP_FATAL(
-                get_logger(),
-                "CRITICAL: Undefined TwistMux state! Committing suicide to trigger FDIR.");
-            throw std::runtime_error("TwistMuxNode: Undefined state machine state detected.");
+        switch (current_state_) {
+            case TwistMuxState::MANUAL:
+                target_vel_ = last_teleop_msg_;
+                break;
+            case TwistMuxState::AUTONOMOUS:
+                target_vel_ = last_nav_msg_;
+                break;
+            case TwistMuxState::IDLE:
+            case TwistMuxState::BLOCKED:
+            case TwistMuxState::UCFG:
+                // A command is recent, but no source is selected: navigation commands
+                // arriving during the manual takeover lock, or a safety block that has
+                // just been released. Zero velocity is commanded until a source is selected.
+                current_state_ = TwistMuxState::IDLE;
+                target_vel_    = geometry_msgs::msg::Twist();
+                break;
+            default:
+                // FATAL FAULT: Out-of-range state value (memory corruption).
+                // Throwing an exception to trigger FDIR Hardware Recovery
+                // and Zero Velocity Override.
+                RCLCPP_FATAL(
+                    get_logger(),
+                    "CRITICAL: Undefined TwistMux state! Committing suicide to trigger FDIR.");
+                throw std::runtime_error("TwistMuxNode: Undefined state machine state detected.");
         }
     }
 

@@ -15,9 +15,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(mona_control)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
-endif()
+# Language standard, strict warnings and runtime checks shared by all MONA C++ packages
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../configs/compiler_settings.cmake")
 
 find_package(ament_cmake      REQUIRED)
 find_package(rclcpp           REQUIRED)
@@ -37,6 +36,7 @@ include_directories(include)
 add_library(twist_mux_component SHARED
   src/twist_mux_node.cpp
 )
+mona_enable_strict_warnings(twist_mux_component)
 
 target_include_directories(twist_mux_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,7 +44,7 @@ target_include_directories(twist_mux_component PUBLIC
 )
 
 # Link dependencies
-ament_target_dependencies(twist_mux_component
+ament_target_dependencies(twist_mux_component SYSTEM
   rclcpp
   rclcpp_lifecycle
   rclcpp_components
@@ -100,12 +100,14 @@ if(BUILD_TESTING)
   )
 
   ament_add_gtest(test_twist_mux_lifecycle test/test_twist_mux_lifecycle.cpp)
+  mona_enable_strict_warnings(test_twist_mux_lifecycle)
   target_link_libraries(test_twist_mux_lifecycle twist_mux_component)
-  ament_target_dependencies(test_twist_mux_lifecycle ${TEST_DEPS})
+  ament_target_dependencies(test_twist_mux_lifecycle SYSTEM ${TEST_DEPS})
 
   ament_add_gtest(test_twist_mux_safety test/test_twist_mux_safety.cpp)
+  mona_enable_strict_warnings(test_twist_mux_safety)
   target_link_libraries(test_twist_mux_safety twist_mux_component)
-  ament_target_dependencies(test_twist_mux_safety ${TEST_DEPS})
+  ament_target_dependencies(test_twist_mux_safety SYSTEM ${TEST_DEPS})
 
   # Execute Linters
   # C++ static analysis and style formatting

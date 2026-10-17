@@ -15,9 +15,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(mona_perception)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
-endif()
+# Language standard, strict warnings and runtime checks shared by all MONA C++ packages
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../configs/compiler_settings.cmake")
 
 find_package(ament_cmake      REQUIRED)
 find_package(rclcpp           REQUIRED)
@@ -40,6 +39,7 @@ include_directories(include)
 add_library(lidar_merger_component SHARED
   src/lidar_merger_node.cpp
 )
+mona_enable_strict_warnings(lidar_merger_component)
 
 target_include_directories(lidar_merger_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -47,7 +47,7 @@ target_include_directories(lidar_merger_component PUBLIC
 )
 
 # Link dependencies
-ament_target_dependencies(lidar_merger_component
+ament_target_dependencies(lidar_merger_component SYSTEM
   rclcpp
   rclcpp_components
   rclcpp_lifecycle
@@ -111,8 +111,9 @@ if(BUILD_TESTING)
   )
 
   ament_add_gtest(test_lidar_merger_lifecycle test/test_lidar_merger_lifecycle.cpp)
+  mona_enable_strict_warnings(test_lidar_merger_lifecycle)
   target_link_libraries(test_lidar_merger_lifecycle lidar_merger_component)
-  ament_target_dependencies(test_lidar_merger_lifecycle ${TEST_DEPS})
+  ament_target_dependencies(test_lidar_merger_lifecycle SYSTEM ${TEST_DEPS})
 
   # Execute Linters
   # C++ static analysis and style formatting

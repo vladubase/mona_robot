@@ -17,7 +17,9 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
+#include <limits>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -182,11 +184,53 @@ TEST_F(SafetyLogicFixture, EnforcesHardVelocityLimits) {
     cmd_pub_->publish(input_msg);
     spin_for_milliseconds(100);
 
-    // Assert: Safety node MUST clamp outputs to max_speed_normal (1.0)
+    // Assert: The planar speed (vector magnitude) is limited to max_speed_normal (1.0 m/s),
+    // the commanded direction is preserved, and the yaw rate is limited to
+    // max_angular_speed_normal (1.0 rad/s).
     ASSERT_TRUE(cmd_received_);
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 1.0) << "Velocity exceeded max_speed_normal!";
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.y, -1.0) << "Velocity exceeded max_speed_normal!";
+    const double planar_speed = std::hypot(latest_motor_cmd_.linear.x, latest_motor_cmd_.linear.y);
+    EXPECT_NEAR(planar_speed, 1.0, 1e-9) << "Planar speed exceeded max_speed_normal!";
+    EXPECT_NEAR(
+        latest_motor_cmd_.linear.y / latest_motor_cmd_.linear.x, -0.2, 1e-9)
+        << "Commanded direction was not preserved!";
     EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, -1.0) << "Angular velocity exceeded limit!";
+}
+
+// Test 2b: Verify that a diagonal command cannot exceed the planar speed limit
+TEST_F(SafetyLogicFixture, LimitsDiagonalPlanarSpeed) {
+    spin_for_milliseconds(150);
+
+    // Act: Command 1.0 m/s on both axes (1.41 m/s resultant on a holonomic base)
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 1.0;
+    input_msg.linear.y = 1.0;
+
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    // Assert: The resultant speed equals the limit, not sqrt(2) times the limit
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_NEAR(
+        std::hypot(latest_motor_cmd_.linear.x, latest_motor_cmd_.linear.y), 1.0, 1e-9)
+        << "Diagonal motion exceeded max_speed_normal!";
+}
+
+// Test 2c: Verify that non-finite commands are replaced by a stop
+TEST_F(SafetyLogicFixture, RejectsNonFiniteCommand) {
+    spin_for_milliseconds(150);
+
+    // Act: Command NaN, which would pass every comparison-based limit
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = std::numeric_limits<double>::quiet_NaN();
+
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    // Assert: The motor command is a finite stop
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Non-finite command reached the motors!";
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.y, 0.0);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, 0.0);
 }
 
 // Test 3: Verify E-STOP Service triggers hardware disconnect
@@ -238,4 +282,56 @@ TEST_F(SafetyLogicFixture, EstopResetRestoresOperation) {
 
     // Assert: Contactors should close again, restoring power to drives
     EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after E-STOP Reset!";
+}
+
+// Test 6: Verify that a reset alone never restores power without FDIR clearance
+TEST_F(SafetyLogicFixture, EstopResetRequiresFdirClearance) {
+    // Arrange: Trigger the E-STOP, then stop the simulated FDIR health stream
+    spin_for_milliseconds(150);
+    estop_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+    spin_for_milliseconds(150);
+    fdir_timer_->cancel();
+    spin_for_milliseconds(100);
+
+    // Act: Reset the E-STOP while no FDIR clearance arrives
+    estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+    spin_for_milliseconds(200);
+
+    // Assert: The contactors stay open and motion commands are replaced by a stop
+    EXPECT_FALSE(latest_contactor_state_) << "Reset closed the contactors without FDIR clearance!";
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 0.5;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR clearance!";
+
+    // Act: FDIR clearance resumes
+    fdir_timer_->reset();
+    spin_for_milliseconds(150);
+
+    // Assert: Power is restored only after FDIR clearance
+    EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after FDIR clearance!";
+}
+
+// Test 7: Verify that an unknown FDIR state halts motion and opens the contactors
+TEST_F(SafetyLogicFixture, UnknownFdirStateHaltsMotion) {
+    spin_for_milliseconds(150);
+    ASSERT_TRUE(latest_contactor_state_);
+
+    // Act: FDIR reports an undefined state ID
+    current_fdir_state_.current_state = 99;
+    spin_for_milliseconds(150);
+
+    geometry_msgs::msg::Twist input_msg;
+    input_msg.linear.x = 0.5;
+    cmd_pub_->publish(input_msg);
+    spin_for_milliseconds(100);
+
+    // Assert
+    EXPECT_FALSE(latest_contactor_state_) << "Contactors closed in an undefined FDIR state!";
+    ASSERT_TRUE(cmd_received_);
+    EXPECT_DOUBLE_EQ(
+        latest_motor_cmd_.linear.x,
+        0.0) << "Motion allowed in an undefined FDIR state!";
 }

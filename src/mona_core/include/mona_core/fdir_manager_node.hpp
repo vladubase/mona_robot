@@ -89,10 +89,18 @@ private:
         double power_off_time{0.0};
         ResetMechanism reset_mechanism{ResetMechanism::LIFECYCLE_SERVICE};
         std::string reset_topic;
+
+        // True once the component has reached ACTIVE. Distinguishes the initial
+        // boot (not yet ACTIVE) from a failure of a running component.
+        bool was_active{false};
     };
 
-    // Multi-threaded execution management
+    // Multi-threaded execution management.
+    // The monitor timer runs in a MutuallyExclusive group, so monitor_loop() never
+    // overlaps with itself. Lifecycle service clients run in a separate Reentrant
+    // group, so their responses are processed while monitor_loop() waits for them.
     rclcpp::CallbackGroup::SharedPtr callback_group_;
+    rclcpp::CallbackGroup::SharedPtr timer_group_;
     rclcpp::TimerBase::SharedPtr monitor_timer_;
 
     // Communication interfaces
@@ -114,6 +122,7 @@ private:
     void init_managed_nodes();
     void monitor_loop();
     void handle_recovery_fsm(ManagedNode &node);
+    static uint8_t failure_state(const ManagedNode &node);
 
     // Lifecycle interaction helpers
     uint8_t get_node_state(const std::string &node_name);

@@ -106,8 +106,10 @@ private:
     std::atomic<bool> is_processing_allowed_{false};
     bool hardware_contactors_closed_{false};
 
-    double max_speed_normal_{0.0};
-    double max_speed_degraded_{0.0};
+    double max_speed_normal_{0.0};  // [m/s]   planar linear speed limit
+    double max_speed_degraded_{0.0};  // [m/s]   planar linear speed limit, DEGRADED
+    double max_angular_speed_normal_{0.0};  // [rad/s] yaw rate limit
+    double max_angular_speed_degraded_{0.0};  // [rad/s] yaw rate limit, DEGRADED
 };
 }  // namespace mona_safety
 
