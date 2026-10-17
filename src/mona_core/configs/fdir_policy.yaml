@@ -17,6 +17,8 @@
     # Global FDIR timings
     recovery_power_off_time:  3.0   # [sec] Duration to hold physical power cutoff to dissipate residual charge
     timeout_before_reboot:    5.0   # [sec] Watchdog timeout threshold before triggering component restart
+    service_timeout_ms:       50    # [ms]  Response deadline of a lifecycle state request, below the 100 ms monitor period
+    unresponsive_poll_limit:  3     # Consecutive missed state responses that declare a component failed (detection <= 3 x 100 ms)
 
     # List of components to dynamically load into C++ FDIR Manager
     tracked_components: ["safety_core", "control_mux", "perception_merger"]

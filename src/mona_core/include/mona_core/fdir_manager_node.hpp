@@ -46,7 +46,7 @@ public:
 
 private:
     static constexpr int MAX_RECOVERY_RETRIES = 3;
-    static constexpr int SERVICE_TIMEOUT_MS   = 50;
+    static constexpr int MONITOR_PERIOD_MS    = 100;
 
     /** @brief   Node criticality tiers according to fdir_policy.yaml */
     enum class Tier {
@@ -93,7 +93,14 @@ private:
         // True once the component has reached ACTIVE. Distinguishes the initial
         // boot (not yet ACTIVE) from a failure of a running component.
         bool was_active{false};
+
+        // Consecutive monitor cycles in which the component did not report its state
+        int missed_polls{0};
     };
+
+    // Configuration parameters from fdir_policy.yaml
+    int service_timeout_ms_{50};  // [ms] Response deadline of a lifecycle service request
+    int unresponsive_poll_limit_{3};  // Consecutive missed polls that declare a failure
 
     // Multi-threaded execution management.
     // The monitor timer runs in a MutuallyExclusive group, so monitor_loop() never
