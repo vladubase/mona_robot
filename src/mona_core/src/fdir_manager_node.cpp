@@ -43,11 +43,14 @@ FdirManagerNode::FdirManagerNode(const rclcpp::NodeOptions &options)
     // Initialize Reentrant group to prevent deadlocks during blocking service calls
     callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
+    // MutuallyExclusive group: a delayed monitor cycle is skipped, never run concurrently
+    timer_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
     // Initialize deterministic safety monitoring loop (10 Hz = 100 ms)
     monitor_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(100),
         std::bind(&FdirManagerNode::monitor_loop, this),
-        callback_group_);
+        timer_group_);
 
     // QoS: Reliable + Transient Local for safety-critical state broadcast
     rclcpp::QoS qos_profile(10);
@@ -145,7 +148,7 @@ void FdirManagerNode::init_managed_nodes() {
 
         // Tier evaluation: Invalid tier halts system boot.
         std::string tier_str = this->get_parameter(prefix + "tier").as_string();
-        Tier        tier;
+        Tier        tier{Tier::FATAL};  // Most restrictive tier until parsed
 
         if (tier_str == "FATAL") {
             tier = Tier::FATAL;
@@ -163,8 +166,9 @@ void FdirManagerNode::init_managed_nodes() {
         }
 
         // Reset Mechanism evaluation.
-        std::string    mech_str = this->get_parameter(prefix + "reset_mechanism").as_string();
-        ResetMechanism mechanism;
+        std::string mech_str = this->get_parameter(prefix + "reset_mechanism").as_string();
+        // Overwritten below, or the configuration is rejected
+        ResetMechanism mechanism{ResetMechanism::LIFECYCLE_SERVICE};
 
         if (mech_str == "hardware_relay") {
             mechanism = ResetMechanism::HARDWARE_RELAY;
@@ -204,7 +208,8 @@ void FdirManagerNode::init_managed_nodes() {
             startup_time,
             global_power_off,  // Applies globally defined power-off timing
             mechanism,
-            reset_topic
+            reset_topic,
+            false  // was_active: the component has not reached ACTIVE yet
         };
 
         // 2. Provision Communication Clients (Action interfaces)
@@ -380,7 +385,7 @@ void FdirManagerNode::monitor_loop() {
             all_active   = false;
             global_state = std::max(
                 global_state,
-                (uint8_t)mona_msgs::msg::FdirState::STATE_EMERGENCY);
+                mona_msgs::msg::FdirState::STATE_EMERGENCY);
             continue;
         }
 
@@ -412,13 +417,12 @@ void FdirManagerNode::monitor_loop() {
                 }
                 node.retry_count = 0;
                 node.phase       = RecoveryPhase::NOMINAL;
+                node.was_active  = true;
                 break;
 
             case lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED:
                 all_active   = false;
-                global_state = std::max(
-                    global_state,
-                    mona_msgs::msg::FdirState::STATE_SYSTEM_STARTUP);
+                global_state = std::max(global_state, failure_state(node));
 
                 // Component requires initialization
                 change_node_state(name, lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
@@ -432,9 +436,7 @@ void FdirManagerNode::monitor_loop() {
 
             case lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE:
                 all_active   = false;
-                global_state = std::max(
-                    global_state,
-                    mona_msgs::msg::FdirState::STATE_SYSTEM_STARTUP);
+                global_state = std::max(global_state, failure_state(node));
 
                 // Component is configured but dormant. Initiating activation sequence.
                 change_node_state(name, lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
@@ -468,35 +470,10 @@ void FdirManagerNode::monitor_loop() {
                     global_state = std::max(
                         global_state,
                         mona_msgs::msg::FdirState::STATE_EMERGENCY);
-                } else if (node.retry_count > MAX_RECOVERY_RETRIES) {
-                    // Escalate global safety state based on the failing component's tier severity
-                    switch (node.tier) {
-                        case Tier::FATAL:
-                            global_state = std::max(
-                                global_state,
-                                mona_msgs::msg::FdirState::STATE_EMERGENCY);
-                            break;
-                        case Tier::PRIMARY:
-                            global_state = std::max(
-                                global_state,
-                                mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP);
-                            break;
-                        case Tier::AUXILIARY:
-                            global_state = std::max(
-                                global_state,
-                                mona_msgs::msg::FdirState::STATE_DEGRADED);
-                            break;
-                        default:
-                            RCLCPP_ERROR(
-                                this->get_logger(), "FDIR Config Error: Unknown tier for node %s",
-                                name.c_str());
-                            break;
-                    }
                 } else {
-                    // Within grace period, treat as system startup or recovering
-                    global_state = std::max(
-                        global_state,
-                        mona_msgs::msg::FdirState::STATE_SYSTEM_STARTUP);
+                    // Escalate according to the tier of the failing component while
+                    // recovery is in progress (STARTUP before its first activation).
+                    global_state = std::max(global_state, failure_state(node));
                 }
                 break;
         }
@@ -573,6 +550,32 @@ void FdirManagerNode::monitor_loop() {
     auto heartbeat_msg = std_msgs::msg::Bool();
     heartbeat_msg.data = true;
     heartbeat_pub_->publish(heartbeat_msg);
+}
+
+/**
+ * @brief   Maps a component that is not ACTIVE to the global health state it requires.
+ *          Before the component has reached ACTIVE for the first time, the system is
+ *          booting (STARTUP). Afterwards, the state follows the tier of the component:
+ *          a failing FATAL component triggers EMERGENCY immediately, without waiting
+ *          for the recovery attempts to be exhausted.
+ * @param   node - Managed component that is not ACTIVE.
+ * @return  uint8_t - FdirState value required by the component's condition.
+ */
+uint8_t FdirManagerNode::failure_state(const ManagedNode &node) {
+    if (!node.was_active) {
+        return mona_msgs::msg::FdirState::STATE_SYSTEM_STARTUP;
+    }
+
+    switch (node.tier) {
+        case Tier::FATAL:
+            return mona_msgs::msg::FdirState::STATE_EMERGENCY;
+        case Tier::PRIMARY:
+            return mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+        case Tier::AUXILIARY:
+            return mona_msgs::msg::FdirState::STATE_DEGRADED;
+        default:  // Out-of-range tier value (memory corruption): most restrictive state
+            return mona_msgs::msg::FdirState::STATE_EMERGENCY;
+    }
 }
 
 /**
