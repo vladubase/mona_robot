@@ -57,6 +57,14 @@ def generate_launch_description():
     )
     use_sim_time = LaunchConfiguration("use_sim_time")
 
+    arg_foxglove_address = DeclareLaunchArgument(
+        "foxglove_address",
+        default_value="127.0.0.1",
+        description="Interface of the Foxglove bridge. 127.0.0.1 = this machine only; "
+        "0.0.0.0 exposes the bridge to the network.",
+    )
+    foxglove_address = LaunchConfiguration("foxglove_address")
+
     # --- ENVIRONMENT SETTINGS --- #
     env_resource = SetEnvironmentVariable(
         name="IGN_GAZEBO_RESOURCE_PATH",
@@ -80,12 +88,35 @@ def generate_launch_description():
     )
 
     # 2. Foxglove WebSocket Bridge (Global Telemetry)
+    # Access policy: read-only telemetry, no client publishing (no access to
+    # hardware/* topics), only the E-STOP and E-STOP reset services, and no
+    # parameter access to the safety node and the FDIR manager.
     bridge_foxglove = Node(
         package="foxglove_bridge",
         executable="foxglove_bridge",
         name="foxglove_bridge",
         parameters=[
-            {"port": 8765, "send_buffer_limit": 100000000, "use_sim_time": use_sim_time}
+            {
+                "port": 8765,
+                "address": foxglove_address,
+                "send_buffer_limit": 100000000,
+                "use_sim_time": use_sim_time,
+                "capabilities": [
+                    "parameters",
+                    "parametersSubscribe",
+                    "services",
+                    "connectionGraph",
+                    "assets",
+                ],
+                "client_topic_whitelist": ["(?!)"],  # matches nothing
+                "service_whitelist": [
+                    "^/mona_[0-9]{3}/emergency_stop$",
+                    "^/mona_[0-9]{3}/emergency_stop_reset$",
+                ],
+                "param_whitelist": [
+                    "^(?!/mona_[0-9]{3}/(safety_node|mona_fdir_manager)\\.).*$"
+                ],
+            }
         ],
         output="screen",
     )
@@ -119,6 +150,7 @@ def generate_launch_description():
             env_color,
             arg_headless,
             arg_use_sim_time,
+            arg_foxglove_address,
             gz_sim,
             delayed_foxglove,
         ]
