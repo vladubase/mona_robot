@@ -17,6 +17,10 @@ source /opt/ros/humble/setup.bash
 # limitations under the License.
 # ==============================================================================
 
+# ament_cppcheck skips cppcheck 2.x by default (reported as "skipped", not failed)
+# because of performance issues on large code bases. MONA requires cppcheck to run.
+export AMENT_CPPCHECK_ALLOW_SLOW_VERSIONS=1
+
 # Define colors for output clarity
 RED='\033[0;31m'
 GREEN='\033[0;32m'
