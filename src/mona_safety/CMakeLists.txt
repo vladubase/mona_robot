@@ -15,9 +15,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(mona_safety)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
-endif()
+# Language standard, strict warnings and runtime checks shared by all MONA C++ packages
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../configs/compiler_settings.cmake")
 
 find_package(ament_cmake      REQUIRED)
 find_package(rclcpp           REQUIRED)
@@ -38,6 +37,7 @@ include_directories(include)
 add_library(safety_component SHARED
   src/safety_node.cpp
 )
+mona_enable_strict_warnings(safety_component)
 
 target_include_directories(safety_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -45,7 +45,7 @@ target_include_directories(safety_component PUBLIC
 )
 
 # Link dependencies
-ament_target_dependencies(safety_component
+ament_target_dependencies(safety_component SYSTEM
   rclcpp
   rclcpp_components
   rclcpp_lifecycle
@@ -104,12 +104,14 @@ if(BUILD_TESTING)
   )
 
   ament_add_gtest(test_safety_lifecycle test/test_safety_lifecycle.cpp)
+  mona_enable_strict_warnings(test_safety_lifecycle)
   target_link_libraries(test_safety_lifecycle safety_component)
-  ament_target_dependencies(test_safety_lifecycle ${TEST_DEPS})
+  ament_target_dependencies(test_safety_lifecycle SYSTEM ${TEST_DEPS})
 
   ament_add_gtest(test_safety_logic test/test_safety_logic.cpp)
+  mona_enable_strict_warnings(test_safety_logic)
   target_link_libraries(test_safety_logic safety_component)
-  ament_target_dependencies(test_safety_logic ${TEST_DEPS})
+  ament_target_dependencies(test_safety_logic SYSTEM ${TEST_DEPS})
 
   # Execute Linters
   # C++ static analysis and style formatting

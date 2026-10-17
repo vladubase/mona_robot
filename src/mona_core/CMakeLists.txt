@@ -15,9 +15,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(mona_core)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
-endif()
+# Language standard, strict warnings and runtime checks shared by all MONA C++ packages
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../configs/compiler_settings.cmake")
 
 find_package(ament_cmake        REQUIRED)
 find_package(rclcpp             REQUIRED)
@@ -36,6 +35,7 @@ include_directories(include)
 add_library(fdir_manager_component SHARED
   src/fdir_manager_node.cpp
 )
+mona_enable_strict_warnings(fdir_manager_component)
 
 target_include_directories(fdir_manager_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -43,7 +43,7 @@ target_include_directories(fdir_manager_component PUBLIC
 )
 
 # Link dependencies
-ament_target_dependencies(fdir_manager_component
+ament_target_dependencies(fdir_manager_component SYSTEM
   rclcpp
   rclcpp_components
   rclcpp_lifecycle
@@ -105,8 +105,14 @@ if(BUILD_TESTING)
   )
 
   ament_add_gtest(test_fdir_manager test/test_fdir_manager.cpp)
+  mona_enable_strict_warnings(test_fdir_manager)
   target_link_libraries(test_fdir_manager fdir_manager_component)
-  ament_target_dependencies(test_fdir_manager ${TEST_DEPS})
+  ament_target_dependencies(test_fdir_manager SYSTEM ${TEST_DEPS})
+
+  ament_add_gtest(test_fdir_tier_escalation test/test_fdir_tier_escalation.cpp)
+  mona_enable_strict_warnings(test_fdir_tier_escalation)
+  target_link_libraries(test_fdir_tier_escalation fdir_manager_component)
+  ament_target_dependencies(test_fdir_tier_escalation SYSTEM ${TEST_DEPS})
 
   # Execute Linters
   # C++ static analysis and style formatting
