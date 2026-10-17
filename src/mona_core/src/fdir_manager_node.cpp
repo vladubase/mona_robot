@@ -48,7 +48,7 @@ FdirManagerNode::FdirManagerNode(const rclcpp::NodeOptions &options)
 
     // Initialize deterministic safety monitoring loop (10 Hz = 100 ms)
     monitor_timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(100),
+        std::chrono::milliseconds(MONITOR_PERIOD_MS),
         std::bind(&FdirManagerNode::monitor_loop, this),
         timer_group_);
 
@@ -100,7 +100,31 @@ FdirManagerNode::~FdirManagerNode() {
 void FdirManagerNode::init_managed_nodes() {
     // PARAMETER DECLARATION
     this->declare_parameter("recovery_power_off_time", 3.0);
+    this->declare_parameter("service_timeout_ms", 50);
+    this->declare_parameter("unresponsive_poll_limit", 3);
     this->declare_parameter("tracked_components", std::vector<std::string>{});
+
+    // Response deadline: one state request must fit into one monitor cycle
+    const int64_t service_timeout_ms = this->get_parameter("service_timeout_ms").as_int();
+    if (service_timeout_ms <= 0 || service_timeout_ms >= MONITOR_PERIOD_MS) {
+        RCLCPP_FATAL(
+            this->get_logger(),
+            "[FDIR] CONFIGURATION FAULT: service_timeout_ms = %ld is outside (0, %d).",
+            service_timeout_ms, MONITOR_PERIOD_MS);
+        throw std::runtime_error("Invalid service_timeout_ms in FDIR policy configuration.");
+    }
+    service_timeout_ms_ = static_cast<int>(service_timeout_ms);
+
+    // Failure declaration: bounded to keep the detection time within 1 s
+    const int64_t poll_limit = this->get_parameter("unresponsive_poll_limit").as_int();
+    if (poll_limit < 1 || poll_limit > 10) {
+        RCLCPP_FATAL(
+            this->get_logger(),
+            "[FDIR] CONFIGURATION FAULT: unresponsive_poll_limit = %ld is outside [1, 10].",
+            poll_limit);
+        throw std::runtime_error("Invalid unresponsive_poll_limit in FDIR policy configuration.");
+    }
+    unresponsive_poll_limit_ = static_cast<int>(poll_limit);
 
     // Fetch the component list to determine dynamic parameter prefixes
     auto tracked_components = this->get_parameter("tracked_components").as_string_array();
@@ -209,7 +233,8 @@ void FdirManagerNode::init_managed_nodes() {
             global_power_off,  // Applies globally defined power-off timing
             mechanism,
             reset_topic,
-            false  // was_active: the component has not reached ACTIVE yet
+            false,  // was_active: the component has not reached ACTIVE yet
+            0  // missed_polls
         };
 
         // 2. Provision Communication Clients (Action interfaces)
@@ -257,7 +282,7 @@ uint8_t FdirManagerNode::get_node_state(const std::string &node_name) {
         auto future  = client->async_send_request(request);
 
         // Block with a strict deterministic timeout
-        if (future.wait_for(std::chrono::milliseconds(SERVICE_TIMEOUT_MS)) ==
+        if (future.wait_for(std::chrono::milliseconds(service_timeout_ms_)) ==
             std::future_status::ready)
         {
             // If the target node was destroyed while we were waiting,
@@ -274,11 +299,13 @@ uint8_t FdirManagerNode::get_node_state(const std::string &node_name) {
             }
         }
 
-        // Timeout breached: The target node is frozen or unresponsive
-        RCLCPP_ERROR_THROTTLE(
+        // Deadline missed: a late response is discarded instead of being kept pending.
+        // A single missed deadline is not a failure; monitor_loop() debounces it.
+        client->remove_pending_request(future);
+        RCLCPP_WARN_THROTTLE(
             this->get_logger(), *this->get_clock(), 1000,
-            "[FDIR] SECURITY FAULT: Node '%s' failed to report state within %d ms.",
-            node_name.c_str(), SERVICE_TIMEOUT_MS);
+            "[FDIR] TIMEOUT: Node '%s' did not report its state within %d ms.",
+            node_name.c_str(), service_timeout_ms_);
     } catch (const std::future_error &e) {
         RCLCPP_ERROR_THROTTLE(
             this->get_logger(), *this->get_clock(), 1000,
@@ -326,7 +353,7 @@ bool FdirManagerNode::change_node_state(const std::string &node_name, uint8_t tr
         auto future = client->async_send_request(request);
 
         // Strict deterministic execution bound
-        if (future.wait_for(std::chrono::milliseconds(SERVICE_TIMEOUT_MS)) ==
+        if (future.wait_for(std::chrono::milliseconds(service_timeout_ms_)) ==
             std::future_status::ready)
         {
             auto response = future.get();
@@ -341,10 +368,11 @@ bool FdirManagerNode::change_node_state(const std::string &node_name, uint8_t tr
             }
         }
 
+        client->remove_pending_request(future);
         RCLCPP_ERROR(
             this->get_logger(),
             "[FDIR] SECURITY FAULT: Transition request to '%s' timed out after %d ms.",
-            node_name.c_str(), SERVICE_TIMEOUT_MS);
+            node_name.c_str(), service_timeout_ms_);
     } catch (const std::future_error &e) {
         RCLCPP_ERROR(
             this->get_logger(),
@@ -389,7 +417,24 @@ void FdirManagerNode::monitor_loop() {
             continue;
         }
 
-        uint8_t state      = get_node_state(name);
+        uint8_t state = get_node_state(name);
+
+        // DEBOUNCE: a component that does not report its state is declared failed only
+        // after unresponsive_poll_limit_ consecutive missed polls. Until then, its last
+        // confirmed state is kept and no lifecycle transition is sent. Recovery in
+        // progress is not debounced.
+        if (state != lifecycle_msgs::msg::State::PRIMARY_STATE_UNKNOWN) {
+            node.missed_polls = 0;
+        } else if (node.phase == RecoveryPhase::NOMINAL) {
+            node.missed_polls++;
+            if (node.missed_polls < unresponsive_poll_limit_) {
+                if (node.current_state != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+                    all_active   = false;
+                    global_state = std::max(global_state, failure_state(node));
+                }
+                continue;
+            }
+        }
         node.current_state = state;
 
         // ANTI-ZOMBIE / SECURITY BREACH DETECTION
@@ -622,13 +667,39 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
                     "[FDIR] Initiating Hard Power Cycle for '%s'. RELAY OPENED.",
                     node.name.c_str());
             } else if (node.reset_mechanism == ResetMechanism::LIFECYCLE_SERVICE) {
-                // For software, trigger cleanup transition
-                change_node_state(node.name, lifecycle_msgs::msg::Transition::TRANSITION_CLEANUP);
+                // A lifecycle transition is sent only if it is valid for the component's
+                // actual state, which is queried again before the reset.
+                const uint8_t actual_state = get_node_state(node.name);
 
-                RCLCPP_INFO(
-                    this->get_logger(),
-                    "[FDIR] Initiating Software Lifecycle Reset for '%s'.",
-                    node.name.c_str());
+                if (actual_state == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
+                    // The component reports ACTIVE again: the failure condition is gone
+                    node.phase             = RecoveryPhase::NOMINAL;
+                    node.last_phase_change = now;
+
+                    RCLCPP_WARN(
+                        this->get_logger(),
+                        "[FDIR] '%s' reports ACTIVE again. Recovery cancelled.",
+                        node.name.c_str());
+                    return;
+                }
+
+                if (actual_state == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE) {
+                    change_node_state(
+                        node.name, lifecycle_msgs::msg::Transition::TRANSITION_CLEANUP);
+
+                    RCLCPP_INFO(
+                        this->get_logger(),
+                        "[FDIR] Initiating Software Lifecycle Reset for '%s'.",
+                        node.name.c_str());
+                } else {
+                    // UNCONFIGURED needs no reset; UNKNOWN, ERRORPROCESSING and
+                    // FINALIZED accept no externally requested transition.
+                    RCLCPP_INFO(
+                        this->get_logger(),
+                        "[FDIR] No lifecycle reset is valid for '%s' in state %d. "
+                        "Waiting for the component.",
+                        node.name.c_str(), actual_state);
+                }
             } else {
                 // Security/Integrity fallback: Catch uninitialized or corrupted mechanism states
                 node.is_defective = true;
