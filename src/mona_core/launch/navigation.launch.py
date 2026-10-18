@@ -39,9 +39,7 @@ def generate_launch_description():
             PushRosNamespace(""),
             SetRemap(src="cmd_vel", dst="cmd_nav"),
             IncludeLaunchDescription(
-                PythonLaunchDescriptionSource(
-                    os.path.join(pkg_nav2_bringup, "launch", "navigation_launch.py")
-                ),
+                PythonLaunchDescriptionSource(os.path.join(pkg_nav2_bringup, "launch", "navigation_launch.py")),
                 launch_arguments={
                     "use_sim_time": use_sim_time,
                     "params_file": params_file,

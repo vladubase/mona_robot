@@ -86,17 +86,11 @@ def generate_launch_description():
     )
     use_sim_time = LaunchConfiguration("use_sim_time")
 
-    arg_spawn_x = DeclareLaunchArgument(
-        "spawn_x", default_value="0.0", description="Spawn X coordinate"
-    )
+    arg_spawn_x = DeclareLaunchArgument("spawn_x", default_value="0.0", description="Spawn X coordinate")
     spawn_x = LaunchConfiguration("spawn_x")
-    arg_spawn_y = DeclareLaunchArgument(
-        "spawn_y", default_value="0.0", description="Spawn Y coordinate"
-    )
+    arg_spawn_y = DeclareLaunchArgument("spawn_y", default_value="0.0", description="Spawn Y coordinate")
     spawn_y = LaunchConfiguration("spawn_y")
-    arg_spawn_yaw = DeclareLaunchArgument(
-        "spawn_yaw", default_value="0.0", description="Spawn Yaw angle"
-    )
+    arg_spawn_yaw = DeclareLaunchArgument("spawn_yaw", default_value="0.0", description="Spawn Yaw angle")
     spawn_yaw = LaunchConfiguration("spawn_yaw")
 
     # --- ENVIRONMENT SETTINGS --- #
@@ -235,9 +229,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "use_sim_time": use_sim_time,
-                        "target_frame": PythonExpression(
-                            ["'", namespace, "/base_link'"]
-                        ),
+                        "target_frame": PythonExpression(["'", namespace, "/base_link'"]),
                     }
                 ],
             ),
@@ -288,9 +280,7 @@ def generate_launch_description():
 
     # 8. Perception
     launch_perception = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_mona_perception, "launch", "perception.launch.py")
-        ),
+        PythonLaunchDescriptionSource(os.path.join(pkg_mona_perception, "launch", "perception.launch.py")),
         launch_arguments={"use_sim_time": use_sim_time, "namespace": namespace}.items(),
     )
 
@@ -376,9 +366,7 @@ def generate_launch_description():
 
     # 12. Manual control (Gamepad)
     launch_teleop = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_mona_core, "launch", "teleop.launch.py")
-        ),
+        PythonLaunchDescriptionSource(os.path.join(pkg_mona_core, "launch", "teleop.launch.py")),
         condition=IfCondition(use_gamepad),
     )
 

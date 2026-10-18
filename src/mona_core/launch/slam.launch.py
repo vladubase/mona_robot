@@ -31,9 +31,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time", default="true")
     slam_params_file = LaunchConfiguration(
         "slam_params_file",
-        default=os.path.join(
-            mona_core_dir, "configs", "mapper_params_localization.yaml"
-        ),
+        default=os.path.join(mona_core_dir, "configs", "mapper_params_localization.yaml"),
     )
 
     # Argument declarations
@@ -51,9 +49,7 @@ def generate_launch_description():
 
     # Integration of the standard slam_toolbox launch file
     start_slam_toolbox_cmd = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(slam_toolbox_dir, "launch", "localization_launch.py")
-        ),
+        PythonLaunchDescriptionSource(os.path.join(slam_toolbox_dir, "launch", "localization_launch.py")),
         launch_arguments={
             "use_sim_time": use_sim_time,
             "slam_params_file": slam_params_file,

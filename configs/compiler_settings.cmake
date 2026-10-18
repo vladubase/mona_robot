@@ -29,7 +29,7 @@
 # CMake recognizes CXX_STANDARD 23 from version 3.20 onwards; older versions
 # would silently fall back to an earlier standard.
 if(CMAKE_VERSION VERSION_LESS "3.20")
-  message(FATAL_ERROR "compiler_settings.cmake requires CMake >= 3.20 (found ${CMAKE_VERSION}).")
+	message(FATAL_ERROR "compiler_settings.cmake requires CMake >= 3.20 (found ${CMAKE_VERSION}).")
 endif()
 
 # C++23 without GNU extensions. The available C++23 library features depend on
@@ -38,62 +38,67 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# --- Compilation database --- #
+# Writes build/<package>/compile_commands.json with the exact
+# flags and include paths of every translation unit.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # --- Compiler warnings (every warning is an error) --- #
 set(MONA_STRICT_WARNINGS "")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  list(APPEND MONA_STRICT_WARNINGS
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Werror
-    # Control flow: every switch handles every enumerator and has a default branch
-    -Wswitch-enum
-    -Wswitch-default
-    -Wimplicit-fallthrough
-    # Implicit conversions that may lose data or change sign
-    -Wconversion
-    -Wsign-conversion
-    -Wdouble-promotion
-    -Wfloat-equal
-    # Casts and object model
-    -Wold-style-cast
-    -Wcast-qual
-    -Wcast-align
-    -Wnon-virtual-dtor
-    -Woverloaded-virtual
-    -Wzero-as-null-pointer-constant
-    # Correctness and readability
-    -Wshadow
-    -Wnull-dereference
-    -Wformat=2
-    -Wundef
-    -Wextra-semi
-    -Wmissing-declarations
-    -Wunused
-  )
+	list(APPEND MONA_STRICT_WARNINGS
+		-Wall
+		-Wextra
+		-Wpedantic
+		-Werror
+		# Control flow: every switch handles every enumerator and has a default branch
+		-Wswitch-enum
+		-Wswitch-default
+		-Wimplicit-fallthrough
+		# Implicit conversions that may lose data or change sign
+		-Wconversion
+		-Wsign-conversion
+		-Wdouble-promotion
+		-Wfloat-equal
+		# Casts and object model
+		-Wold-style-cast
+		-Wcast-qual
+		-Wcast-align
+		-Wnon-virtual-dtor
+		-Woverloaded-virtual
+		-Wzero-as-null-pointer-constant
+		# Correctness and readability
+		-Wshadow
+		-Wnull-dereference
+		-Wformat=2
+		-Wundef
+		-Wextra-semi
+		-Wmissing-declarations
+		-Wunused
+	)
 endif()
 
 # GCC-specific diagnostics without a Clang equivalent of the same name
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  list(APPEND MONA_STRICT_WARNINGS
-    -Wduplicated-cond
-    -Wduplicated-branches
-    -Wlogical-op
-    -Wuseless-cast
-    -Wsuggest-override
-  )
+	list(APPEND MONA_STRICT_WARNINGS
+		-Wduplicated-cond
+		-Wduplicated-branches
+		-Wlogical-op
+		-Wuseless-cast
+		-Wsuggest-override
+	)
 endif()
 
 # An unsupported compiler must fail the configuration instead of silently
 # building without the warning set.
 if(NOT MONA_STRICT_WARNINGS)
-  message(FATAL_ERROR "No strict warning set is defined for compiler '${CMAKE_CXX_COMPILER_ID}'.")
+	message(FATAL_ERROR "No strict warning set is defined for compiler '${CMAKE_CXX_COMPILER_ID}'.")
 endif()
 
 # Applies the strict warning set to a single MONA target.
 function(mona_enable_strict_warnings target)
-  target_compile_options(${target} PRIVATE ${MONA_STRICT_WARNINGS})
+	target_compile_options(${target} PRIVATE ${MONA_STRICT_WARNINGS})
 endfunction()
 
 # --- Runtime checks --- #

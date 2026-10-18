@@ -16,7 +16,7 @@ cmake_minimum_required(VERSION 3.8)
 project(mona_msgs)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+	add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
 find_package(ament_cmake      REQUIRED)
@@ -27,31 +27,32 @@ find_package(rosidl_default_generators REQUIRED)
 # Message Generation
 # ------------------------------------------------------------------------------
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/FdirState.msg"
-  "msg/SafetyDiagnostics.msg"
-  "msg/SafetyState.msg"
-  "msg/TwistMuxState.msg"
-  DEPENDENCIES std_msgs
+	"msg/FdirState.msg"
+	"msg/SafetyDiagnostics.msg"
+	"msg/SafetyState.msg"
+	"msg/TwistMuxState.msg"
+	DEPENDENCIES std_msgs
 )
 
 # ------------------------------------------------------------------------------
 # Testing
 # ------------------------------------------------------------------------------
 if(BUILD_TESTING)
-  # Use manual package discovery for linters (instead of ament_lint_auto)
-  # to guarantee strict compliance with enterprise QA standards.
-  find_package(ament_cmake_xmllint    REQUIRED)
-  find_package(ament_cmake_lint_cmake REQUIRED)
-  find_package(ament_cmake_copyright  REQUIRED)
+	# Use manual package discovery for linters (instead of ament_lint_auto)
+	# to guarantee strict compliance with enterprise QA standards.
+	find_package(ament_cmake_xmllint    REQUIRED)
+	find_package(ament_cmake_lint_cmake REQUIRED)
+	find_package(ament_cmake_copyright  REQUIRED)
 
-  # Copyright verification
-  ament_copyright()
+	# Copyright verification
+	ament_copyright()
 
-  # XML syntax validation (package, launch, xacro)
-  ament_xmllint()
+	# XML syntax validation (package, launch, xacro)
+	ament_xmllint()
 
-  # CMake syntax formatting
-  ament_lint_cmake()
+	# CMake syntax formatting
+	# CMake files are indented with tabs (project code style)
+	ament_lint_cmake("--filters=-whitespace/tabs" MAX_LINE_LENGTH 120)
 endif()
 
 ament_package()

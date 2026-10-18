@@ -17,17 +17,17 @@
 #define MONA_PERCEPTION__LIDAR_MERGER_NODE_HPP_
 
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
 
+#include "lifecycle_msgs/msg/state.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
-#include "lifecycle_msgs/msg/state.hpp"
 
-#include "std_msgs/msg/bool.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 #include "laser_geometry/laser_geometry.hpp"
 #include "message_filters/subscriber.h"
@@ -44,53 +44,53 @@ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface
 
 class LidarMergerNode : public rclcpp_lifecycle::LifecycleNode {
 public:
-    explicit LidarMergerNode(const rclcpp::NodeOptions &options);
-    virtual ~LidarMergerNode();
+	explicit LidarMergerNode(const rclcpp::NodeOptions &options);
+	virtual ~LidarMergerNode();
 
-    // Lifecycle transition overrides
-    CallbackReturn on_configure(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_activate(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_deactivate(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_cleanup(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_shutdown(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_error(const rclcpp_lifecycle::State &previous_state) override;
+	// Lifecycle transition overrides
+	CallbackReturn on_configure(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_activate(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_deactivate(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_cleanup(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_shutdown(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_error(const rclcpp_lifecycle::State &previous_state) override;
 
 private:
-    // Callbacks
-    void power_callback(const std_msgs::msg::Bool::SharedPtr msg);
+	// Callbacks
+	void power_callback(const std_msgs::msg::Bool::SharedPtr msg);
 
-    void fused_callback(
-        const sensor_msgs::msg::LaserScan::ConstSharedPtr &front,
-        const sensor_msgs::msg::LaserScan::ConstSharedPtr &back,
-        const sensor_msgs::msg::LaserScan::ConstSharedPtr &left,
-        const sensor_msgs::msg::LaserScan::ConstSharedPtr &right);
+	void fused_callback(
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr &front,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr &back,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr &left,
+		const sensor_msgs::msg::LaserScan::ConstSharedPtr &right);
 
-    void concatenate_pointclouds(
-        sensor_msgs::msg::PointCloud2 &base,
-        const sensor_msgs::msg::PointCloud2 &add);
+	void concatenate_pointclouds(
+		sensor_msgs::msg::PointCloud2 &base,
+		const sensor_msgs::msg::PointCloud2 &add);
 
-    // State variables
-    bool has_power_{true};
-    std::string target_frame_{};
-    double transform_timeout_{0.0};
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr power_sub_;
+	// State variables
+	bool has_power_{true};
+	std::string target_frame_{};
+	double transform_timeout_{0.0};
+	rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr power_sub_;
 
-    // TF and projections
-    laser_geometry::LaserProjection projector_;
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+	// TF and projections
+	laser_geometry::LaserProjection projector_;
+	std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+	std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
-    // message_filters subscribers bound to the LifecycleNode
-    message_filters::Subscriber<sensor_msgs::msg::LaserScan, rclcpp_lifecycle::LifecycleNode>
-    sub_front_, sub_back_, sub_left_, sub_right_;
+	// message_filters subscribers bound to the LifecycleNode
+	message_filters::Subscriber<sensor_msgs::msg::LaserScan, rclcpp_lifecycle::LifecycleNode>
+	sub_front_, sub_back_, sub_left_, sub_right_;
 
-    // Synchronization policy
-    typedef message_filters::sync_policies::ApproximateTime<
-            sensor_msgs::msg::LaserScan, sensor_msgs::msg::LaserScan,
-            sensor_msgs::msg::LaserScan, sensor_msgs::msg::LaserScan> SyncPolicy;
+	// Synchronization policy
+	typedef message_filters::sync_policies::ApproximateTime<
+			sensor_msgs::msg::LaserScan, sensor_msgs::msg::LaserScan,
+			sensor_msgs::msg::LaserScan, sensor_msgs::msg::LaserScan> SyncPolicy;
 
-    std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
-    rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+	std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
+	rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
 };
 }  // namespace mona_perception
 
