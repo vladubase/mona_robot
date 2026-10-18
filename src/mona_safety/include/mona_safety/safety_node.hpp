@@ -21,18 +21,18 @@
 #include <memory>
 #include <string>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "diagnostic_updater/diagnostic_updater.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "std_msgs/msg/bool.hpp"
 #include "mona_msgs/msg/fdir_state.hpp"
+#include "mona_msgs/msg/safety_diagnostics.hpp"
 #include "mona_msgs/msg/safety_state.hpp"
 #include "mona_msgs/msg/twist_mux_state.hpp"
-#include "mona_msgs/msg/safety_diagnostics.hpp"
-#include "std_srvs/srv/trigger.hpp"
-#include "diagnostic_updater/diagnostic_updater.hpp"
 #include "mona_safety/stop_monitor.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "std_msgs/msg/bool.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace mona_safety
 {
@@ -40,111 +40,111 @@ namespace mona_safety
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
 enum class SafetyState {
-    NORMAL,
-    DEGRADED,  // Performance issues detected (slow mode enabled)
-    PROTECTIVE_STOP,  // Vehicle stopped, waiting for a PRIMARY node to reboot
-    EMERGENCY  // E-STOP active (contactors physically opened)
+	NORMAL,
+	DEGRADED,           // Performance issues detected (slow mode enabled)
+	PROTECTIVE_STOP,    // Vehicle stopped, waiting for a PRIMARY node to reboot
+	EMERGENCY           // E-STOP active (contactors physically opened)
 };
 
 enum class FdirCommand {
-    SYSTEM_STARTUP,
-    EMERGENCY,
-    PROTECTIVE_STOP,
-    DEGRADED,
-    SOFTWARE_OK,
-    UNKNOWN
+	SYSTEM_STARTUP,
+	EMERGENCY,
+	PROTECTIVE_STOP,
+	DEGRADED,
+	SOFTWARE_OK,
+	UNKNOWN
 };
 
 class SafetyNode : public rclcpp_lifecycle::LifecycleNode {
 public:
-    explicit SafetyNode(const rclcpp::NodeOptions &options);
-    ~SafetyNode();
+	explicit SafetyNode(const rclcpp::NodeOptions &options);
+	~SafetyNode();
 
 protected:
-    CallbackReturn on_configure(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_activate(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_deactivate(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_cleanup(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_shutdown(const rclcpp_lifecycle::State &state) override;
-    CallbackReturn on_error(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_configure(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_activate(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_deactivate(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_cleanup(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_shutdown(const rclcpp_lifecycle::State &state) override;
+	CallbackReturn on_error(const rclcpp_lifecycle::State &state) override;
 
 private:
-    std::string safety_state_to_string(SafetyState state);
+	std::string safety_state_to_string(SafetyState state);
 
-    void smoothed_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
-    void health_state_callback(const mona_msgs::msg::FdirState::SharedPtr msg);
-    void mux_state_callback(const mona_msgs::msg::TwistMuxState::SharedPtr msg);
-    void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
-    void estop_callback(
-        const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-        std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-    void estop_reset_callback(
-        const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-        std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+	void smoothed_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
+	void health_state_callback(const mona_msgs::msg::FdirState::SharedPtr msg);
+	void mux_state_callback(const mona_msgs::msg::TwistMuxState::SharedPtr msg);
+	void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg);
+	void estop_callback(
+		const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+		std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+	void estop_reset_callback(
+		const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+		std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
-    void watchdog_callback();
-    void handle_stop_violation(const char *reason);
+	void watchdog_callback();
+	void handle_stop_violation(const char *reason);
 
-    void set_hardware_contactors(bool enable);
-    void publish_stop();
-    void publish_global_state();
-    void produce_diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat);
+	void set_hardware_contactors(bool enable);
+	void publish_stop();
+	void publish_global_state();
+	void produce_diagnostics(diagnostic_updater::DiagnosticStatusWrapper &stat);
 
-    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr smooth_sub_;
-    rclcpp::Subscription<mona_msgs::msg::FdirState>::SharedPtr health_sub_;
-    rclcpp::Subscription<mona_msgs::msg::TwistMuxState>::SharedPtr mux_state_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr smooth_sub_;
+	rclcpp::Subscription<mona_msgs::msg::FdirState>::SharedPtr health_sub_;
+	rclcpp::Subscription<mona_msgs::msg::TwistMuxState>::SharedPtr mux_state_sub_;
+	rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 
-    rclcpp::TimerBase::SharedPtr watchdog_timer_;
+	rclcpp::TimerBase::SharedPtr watchdog_timer_;
 
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_estop_;
-    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_estop_reset_;
-    rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Twist>::SharedPtr motor_pub_;
-    rclcpp_lifecycle::LifecyclePublisher<mona_msgs::msg::SafetyState>::SharedPtr safety_state_pub_;
-    rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Bool>::SharedPtr contactor_pub_;
-    diagnostic_updater::Updater diagnostic_updater_;
+	rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_estop_;
+	rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_estop_reset_;
+	rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Twist>::SharedPtr motor_pub_;
+	rclcpp_lifecycle::LifecyclePublisher<mona_msgs::msg::SafetyState>::SharedPtr safety_state_pub_;
+	rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Bool>::SharedPtr contactor_pub_;
+	diagnostic_updater::Updater diagnostic_updater_;
 
-    // Default safe state on initialization
-    SafetyState current_state_{SafetyState::PROTECTIVE_STOP};
-    uint8_t last_fdir_state_{255};  // 255 as an invalid initial state
-    uint8_t last_mux_state_{mona_msgs::msg::TwistMuxState::IDLE};
+	// Default safe state on initialization
+	SafetyState current_state_{SafetyState::PROTECTIVE_STOP};
+	uint8_t last_fdir_state_{255};  // 255 as an invalid initial state
+	uint8_t last_mux_state_{mona_msgs::msg::TwistMuxState::IDLE};
 
-    std::atomic<bool> e_stop_active_{false};
-    std::atomic<bool> is_processing_allowed_{false};
-    bool hardware_contactors_closed_{false};
+	std::atomic<bool> e_stop_active_{false};
+	std::atomic<bool> is_processing_allowed_{false};
+	bool hardware_contactors_closed_{false};
 
-    double max_speed_normal_{0.0};  // [m/s]   planar linear speed limit
-    double max_speed_degraded_{0.0};  // [m/s]   planar linear speed limit, DEGRADED
-    double max_angular_speed_normal_{0.0};  // [rad/s] yaw rate limit
-    double max_angular_speed_degraded_{0.0};  // [rad/s] yaw rate limit, DEGRADED
+	double max_speed_normal_{0.0};              // [m/s]   planar linear speed limit
+	double max_speed_degraded_{0.0};            // [m/s]   planar linear speed limit, DEGRADED
+	double max_angular_speed_normal_{0.0};      // [rad/s] yaw rate limit
+	double max_angular_speed_degraded_{0.0};    // [rad/s] yaw rate limit, DEGRADED
 
-    // Watchdog: input freshness is measured on the monotonic wall clock. Simulation
-    // time stops together with a frozen simulator and could never reveal it.
-    using SteadyClock = std::chrono::steady_clock;
-    static constexpr std::chrono::milliseconds WATCHDOG_PERIOD{20};
+	// Watchdog: input freshness is measured on the monotonic wall clock. Simulation
+	// time stops together with a frozen simulator and could never reveal it.
+	using SteadyClock = std::chrono::steady_clock;
+	static constexpr std::chrono::milliseconds WATCHDOG_PERIOD{20};
 
-    std::chrono::duration<double> fdir_state_timeout_{0.0};  // [s]
-    std::chrono::duration<double> command_timeout_{0.0};  // [s]
-    std::chrono::duration<double> odom_timeout_{0.0};  // [s]
+	std::chrono::duration<double> fdir_state_timeout_{0.0}; // [s]
+	std::chrono::duration<double> command_timeout_{0.0};    // [s]
+	std::chrono::duration<double> odom_timeout_{0.0};       // [s]
 
-    // Reception times; each supervision is armed by the first message of its input
-    SteadyClock::time_point last_fdir_rx_{};
-    SteadyClock::time_point last_command_rx_{};
-    SteadyClock::time_point last_odom_rx_{};
-    bool fdir_received_{false};
-    bool command_received_{false};
-    bool odom_received_{false};
+	// Reception times; each supervision is armed by the first message of its input
+	SteadyClock::time_point last_fdir_rx_{};
+	SteadyClock::time_point last_command_rx_{};
+	SteadyClock::time_point last_odom_rx_{};
+	bool fdir_received_{false};
+	bool command_received_{false};
+	bool odom_received_{false};
 
-    // Latched loss of FDIR supervision; released only by emergency_stop_reset
-    bool supervision_lost_{false};
-    bool command_stale_{false};
+	// Latched loss of FDIR supervision; released only by emergency_stop_reset
+	bool supervision_lost_{false};
+	bool command_stale_{false};
 
-    // Latest measured motion from odometry
-    double measured_linear_speed_{0.0};  // [m/s]   planar speed
-    double measured_angular_speed_{0.0};  // [rad/s] yaw rate magnitude
+	// Latest measured motion from odometry
+	double measured_linear_speed_{0.0};     // [m/s]   planar speed
+	double measured_angular_speed_{0.0};    // [rad/s] yaw rate magnitude
 
-    // Time-monitored controlled stop (SS1-t) in PROTECTIVE_STOP and EMERGENCY
-    StopMonitor stop_monitor_{StopMonitorConfig{}};
+	// Time-monitored controlled stop (SS1-t) in PROTECTIVE_STOP and EMERGENCY
+	StopMonitor stop_monitor_{StopMonitorConfig{}};
 };
 }  // namespace mona_safety
 

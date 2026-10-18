@@ -1,0 +1,42 @@
+# Editor settings per file type (https://editorconfig.org).
+# Read by GitHub (tab width in diffs and file views) and by most editors.
+# The C++ layout itself is enforced by configs/uncrustify.cfg, Python by flake8.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# C++ and CMake: tab indentation, displayed 4 columns wide
+[*.{c,cc,cpp,h,hh,hpp}]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+[{CMakeLists.txt,*.cmake}]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+# Make requires tabs for recipe lines
+[Makefile]
+indent_style = tab
+tab_width = 4
+
+# Python (PEP 8), shell scripts and Dockerfile: 4 spaces
+[{*.py,*.bash,*.sh,Dockerfile}]
+indent_style = space
+indent_size = 4
+
+# YAML forbids tabs; XML-based robot and world descriptions and JSON use 2 spaces
+[{*.yaml,*.yml,*.xml,*.xacro,*.urdf,*.sdf,*.world,*.json}]
+indent_style = space
+indent_size = 2
+
+# Two trailing spaces are a line break in Markdown
+[*.md]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = false

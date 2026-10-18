@@ -46,7 +46,7 @@ fi
 # Python Formatting (Black)
 echo -e "${BLUE}[CI] Running Black formatter...${NC}"
 if python3 -m black --version &> /dev/null; then
-    python3 -m black src/ scripts/
+    python3 -m black --line-length 120 src/ scripts/
     echo -e "${GREEN}[OK] Python formatted (Black).${NC}"
 else
     echo -e "${RED}[ERROR] Black formatter not found. Run 'pip install black' locally.${NC}"

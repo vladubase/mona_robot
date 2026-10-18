@@ -24,12 +24,12 @@ namespace mona_safety
 {
 /** @brief   Configuration of the time-monitored stop. */
 struct StopMonitorConfig {
-    double deceleration{1.0};  // [m/s^2]   Minimum planar deceleration of a controlled stop
-    double angular_deceleration{1.0};  // [rad/s^2] Minimum yaw deceleration of a controlled stop
-    double time_margin{0.5};  // [s]  Allowance for command latency, drive response, odometry delay
-    double standstill_linear{0.05};  // [m/s]   Planar speed regarded as standstill
-    double standstill_angular{0.05};  // [rad/s] Yaw rate regarded as standstill
-    int debounce_samples{3};  // Consecutive moving samples that confirm a violation
+	double deceleration{1.0};           // [m/s^2]   Minimum planar deceleration of a controlled stop
+	double angular_deceleration{1.0};   // [rad/s^2] Minimum yaw deceleration of a controlled stop
+	double time_margin{0.5};            // [s]       Command latency, drive response and odometry delay
+	double standstill_linear{0.05};     // [m/s]     Planar speed regarded as standstill
+	double standstill_angular{0.05};    // [rad/s]   Yaw rate regarded as standstill
+	int debounce_samples{3};            // Consecutive moving samples that confirm a violation
 };
 
 /**
@@ -43,75 +43,75 @@ struct StopMonitorConfig {
  */
 class StopMonitor {
 public:
-    using Clock = std::chrono::steady_clock;
+	using Clock = std::chrono::steady_clock;
 
-    explicit StopMonitor(const StopMonitorConfig &config)
-        : config_(config) {}
+	explicit StopMonitor(const StopMonitorConfig &config)
+		: config_(config) {}
 
-    /** @return  true if every value is finite and positive (debounce at least 1). */
-    static bool is_valid(const StopMonitorConfig &config) {
-        const auto positive = [](double value) {return std::isfinite(value) && value > 0.0;};
-        return positive(config.deceleration) && positive(config.angular_deceleration) &&
-               positive(config.time_margin) && positive(config.standstill_linear) &&
-               positive(config.standstill_angular) && config.debounce_samples >= 1;
-    }
+	/** @return  true if every value is finite and positive (debounce at least 1). */
+	static bool is_valid(const StopMonitorConfig &config) {
+		const auto positive = [](double value) {return std::isfinite(value) && value > 0.0;};
+		return positive(config.deceleration) && positive(config.angular_deceleration) &&
+		       positive(config.time_margin) && positive(config.standstill_linear) &&
+		       positive(config.standstill_angular) && config.debounce_samples >= 1;
+	}
 
-    /**
-     * @brief   Starts the supervision of a stop.
-     * @param   now           - Time of entry into the stop.
-     * @param   linear_speed  - [m/s]   Measured planar speed at entry.
-     * @param   angular_speed - [rad/s] Measured yaw rate at entry.
-     */
-    void begin(Clock::time_point now, double linear_speed, double angular_speed) {
-        double stop_time = std::max(
-            std::abs(linear_speed) / config_.deceleration,
-            std::abs(angular_speed) / config_.angular_deceleration) + config_.time_margin;
+	/**
+	 * @brief   Starts the supervision of a stop.
+	 * @param   now           - Time of entry into the stop.
+	 * @param   linear_speed  - [m/s]   Measured planar speed at entry.
+	 * @param   angular_speed - [rad/s] Measured yaw rate at entry.
+	 */
+	void begin(Clock::time_point now, double linear_speed, double angular_speed) {
+		double stop_time = std::max(
+			std::abs(linear_speed) / config_.deceleration,
+			std::abs(angular_speed) / config_.angular_deceleration) + config_.time_margin;
 
-        // A non-finite entry speed cannot justify any braking time: margin only
-        if (!std::isfinite(stop_time)) {
-            stop_time = config_.time_margin;
-        }
+		// A non-finite entry speed cannot justify any braking time: margin only
+		if (!std::isfinite(stop_time)) {
+			stop_time = config_.time_margin;
+		}
 
-        deadline_ = now + std::chrono::duration_cast<Clock::duration>(
-            std::chrono::duration<double>(stop_time));
-        moving_samples_ = 0;
-        active_         = true;
-    }
+		deadline_ = now + std::chrono::duration_cast<Clock::duration>(
+			std::chrono::duration<double>(stop_time));
+		moving_samples_ = 0;
+		active_         = true;
+	}
 
-    /** @brief   Ends the supervision when the stop is released. */
-    void end() {
-        active_         = false;
-        moving_samples_ = 0;
-    }
+	/** @brief   Ends the supervision when the stop is released. */
+	void end() {
+		active_         = false;
+		moving_samples_ = 0;
+	}
 
-    bool active() const {return active_;}
+	bool active() const {return active_;}
 
-    /** @return  true if a stop is supervised and its permitted stopping time has elapsed. */
-    bool deadline_expired(Clock::time_point now) const {return active_ && now >= deadline_;}
+	/** @return  true if a stop is supervised and its permitted stopping time has elapsed. */
+	bool deadline_expired(Clock::time_point now) const {return active_ && now >= deadline_;}
 
-    /**
-     * @brief   Evaluates one odometry sample.
-     * @return  true if the sample confirms motion after the permitted stopping time.
-     */
-    bool update(Clock::time_point now, double linear_speed, double angular_speed) {
-        if (!deadline_expired(now)) {
-            moving_samples_ = 0;
-            return false;
-        }
+	/**
+	 * @brief   Evaluates one odometry sample.
+	 * @return  true if the sample confirms motion after the permitted stopping time.
+	 */
+	bool update(Clock::time_point now, double linear_speed, double angular_speed) {
+		if (!deadline_expired(now)) {
+			moving_samples_ = 0;
+			return false;
+		}
 
-        // Negated comparison: NaN fails every comparison and is therefore "moving"
-        const bool moving = !(std::abs(linear_speed) <= config_.standstill_linear) ||
-            !(std::abs(angular_speed) <= config_.standstill_angular);
+		// Negated comparison: NaN fails every comparison and is therefore "moving"
+		const bool moving = !(std::abs(linear_speed) <= config_.standstill_linear) ||
+		    !(std::abs(angular_speed) <= config_.standstill_angular);
 
-        moving_samples_ = moving ? std::min(moving_samples_ + 1, config_.debounce_samples) : 0;
-        return moving_samples_ >= config_.debounce_samples;
-    }
+		moving_samples_ = moving ? std::min(moving_samples_ + 1, config_.debounce_samples) : 0;
+		return moving_samples_ >= config_.debounce_samples;
+	}
 
 private:
-    StopMonitorConfig config_;
-    Clock::time_point deadline_{};
-    int moving_samples_{0};
-    bool active_{false};
+	StopMonitorConfig config_;
+	Clock::time_point deadline_{};
+	int moving_samples_{0};
+	bool active_{false};
 };
 }  // namespace mona_safety
 

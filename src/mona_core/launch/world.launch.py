@@ -52,9 +52,7 @@ def generate_launch_description():
     )
     headless = LaunchConfiguration("headless")
 
-    arg_use_sim_time = DeclareLaunchArgument(
-        "use_sim_time", default_value="true", description="Use simulation clock"
-    )
+    arg_use_sim_time = DeclareLaunchArgument("use_sim_time", default_value="true", description="Use simulation clock")
     use_sim_time = LaunchConfiguration("use_sim_time")
 
     arg_foxglove_address = DeclareLaunchArgument(
@@ -81,9 +79,7 @@ def generate_launch_description():
         world_file,
     ]
     gz_sim = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_ros_gz_sim, "launch", "gz_sim.launch.py")
-        ),
+        PythonLaunchDescriptionSource(os.path.join(pkg_ros_gz_sim, "launch", "gz_sim.launch.py")),
         launch_arguments={"gz_args": gz_args}.items(),
     )
 
@@ -113,9 +109,7 @@ def generate_launch_description():
                     "^/mona_[0-9]{3}/emergency_stop$",
                     "^/mona_[0-9]{3}/emergency_stop_reset$",
                 ],
-                "param_whitelist": [
-                    "^(?!/mona_[0-9]{3}/(safety_node|mona_fdir_manager)\\.).*$"
-                ],
+                "param_whitelist": ["^(?!/mona_[0-9]{3}/(safety_node|mona_fdir_manager)\\.).*$"],
             }
         ],
         output="screen",

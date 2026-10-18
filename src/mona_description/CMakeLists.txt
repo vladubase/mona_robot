@@ -16,7 +16,7 @@ cmake_minimum_required(VERSION 3.8)
 project(mona_description)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+	add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
 find_package(ament_cmake  REQUIRED)
@@ -24,29 +24,30 @@ find_package(urdf         REQUIRED)
 find_package(xacro        REQUIRED)
 
 install(
-  DIRECTORY urdf meshes rviz worlds
-  DESTINATION share/${PROJECT_NAME}
+	DIRECTORY urdf meshes rviz worlds
+	DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
-  # 1. Use manual package discovery for specific linters (instead of ament_lint_auto)
-  find_package(ament_cmake_xmllint    REQUIRED)
-  find_package(ament_cmake_lint_cmake REQUIRED)
-  find_package(ament_cmake_copyright  REQUIRED)
-  find_package(ament_cmake_flake8     REQUIRED)
+	# 1. Use manual package discovery for specific linters (instead of ament_lint_auto)
+	find_package(ament_cmake_xmllint    REQUIRED)
+	find_package(ament_cmake_lint_cmake REQUIRED)
+	find_package(ament_cmake_copyright  REQUIRED)
+	find_package(ament_cmake_flake8     REQUIRED)
 
-  # 2. Execute each linter manually
-  # Copyright verification
-  ament_copyright()
+	# 2. Execute each linter manually
+	# Copyright verification
+	ament_copyright()
 
-  # Python linter with custom configuration
-  ament_flake8(CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../../configs/setup.cfg")
+	# Python linter with custom configuration
+	ament_flake8(CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../../configs/setup.cfg")
 
-  # XML syntax validation (package, launch, xacro)
-  ament_xmllint()
+	# XML syntax validation (package, launch, xacro)
+	ament_xmllint()
 
-  # CMake style validation
-  ament_lint_cmake()
+	# CMake style validation
+	# CMake files are indented with tabs (project code style)
+	ament_lint_cmake("--filters=-whitespace/tabs" MAX_LINE_LENGTH 120)
 endif()
 
 ament_package()

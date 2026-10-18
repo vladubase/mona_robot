@@ -14,78 +14,79 @@
 
 
 #include <gtest/gtest.h>
+
 #include <memory>
 
-#include "rclcpp/rclcpp.hpp"
 #include "lifecycle_msgs/msg/state.hpp"
 #include "lifecycle_msgs/msg/transition.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include "mona_safety/safety_node.hpp"
 
 // Test fixture to initialize the standard ROS 2 environment
 class TestSafety : public ::testing::Test {
 protected:
-    static void SetUpTestSuite() {
-        rclcpp::init(0, nullptr);
-    }
+	static void SetUpTestSuite() {
+		rclcpp::init(0, nullptr);
+	}
 
-    static void TearDownTestSuite() {
-        rclcpp::shutdown();
-    }
+	static void TearDownTestSuite() {
+		rclcpp::shutdown();
+	}
 };
 
 // Test 1: Verify initialization, name registration, and lifecycle state transitions
 TEST_F(TestSafety, LifecycleTransition) {
-    rclcpp::NodeOptions options;
-    auto node = std::make_shared<mona_safety::SafetyNode>(options);
+	rclcpp::NodeOptions options;
+	auto node = std::make_shared<mona_safety::SafetyNode>(options);
 
-    // Smoke Test: Verify Node Instantiation and Name
-    EXPECT_NE(node, nullptr);
-    EXPECT_STREQ(node->get_name(), "safety_node");
+	// Smoke Test: Verify Node Instantiation and Name
+	EXPECT_NE(node, nullptr);
+	EXPECT_STREQ(node->get_name(), "safety_node");
 
-    // Verify the initial state is strictly UNCONFIGURED
-    EXPECT_EQ(
-        node->get_current_state().id(),
-        lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED
-    );
+	// Verify the initial state is strictly UNCONFIGURED
+	EXPECT_EQ(
+		node->get_current_state().id(),
+		lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED
+	);
 
-    // Trigger on_configure()
-    // This verifies memory allocation and publisher/subscription setup
-    auto state_after_configure = node->trigger_transition(
-        lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+	// Trigger on_configure()
+	// This verifies memory allocation and publisher/subscription setup
+	auto state_after_configure = node->trigger_transition(
+		lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
 
-    EXPECT_EQ(
-        state_after_configure.id(),
-        lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE
-    );
+	EXPECT_EQ(
+		state_after_configure.id(),
+		lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE
+	);
 
-    // Trigger on_activate()
-    // This verifies the activation of lifecycle publishers and internal state resets
-    auto state_after_activate = node->trigger_transition(
-        lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
+	// Trigger on_activate()
+	// This verifies the activation of lifecycle publishers and internal state resets
+	auto state_after_activate = node->trigger_transition(
+		lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 
-    EXPECT_EQ(
-        state_after_activate.id(),
-        lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE
-    );
+	EXPECT_EQ(
+		state_after_activate.id(),
+		lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE
+	);
 
-    // Trigger on_deactivate()
-    // This verifies that data streams halt seamlessly
-    auto state_after_deactivate = node->trigger_transition(
-        lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);
+	// Trigger on_deactivate()
+	// This verifies that data streams halt seamlessly
+	auto state_after_deactivate = node->trigger_transition(
+		lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);
 
-    EXPECT_EQ(
-        state_after_deactivate.id(),
-        lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE
-    );
+	EXPECT_EQ(
+		state_after_deactivate.id(),
+		lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE
+	);
 
-    // Trigger on_shutdown()
-    // This verifies proper resource deallocation via the on_cleanup callback
-    auto state_after_shutdown = node->trigger_transition(
-        lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN);
+	// Trigger on_shutdown()
+	// This verifies proper resource deallocation via the on_cleanup callback
+	auto state_after_shutdown = node->trigger_transition(
+		lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN);
 
-    EXPECT_EQ(
-        state_after_shutdown.id(),
-        lifecycle_msgs::msg::State::PRIMARY_STATE_FINALIZED
-    );
+	EXPECT_EQ(
+		state_after_shutdown.id(),
+		lifecycle_msgs::msg::State::PRIMARY_STATE_FINALIZED
+	);
 }

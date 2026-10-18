@@ -13,22 +13,23 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <memory>
-#include <string>
-#include <thread>
+
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <memory>
+#include <string>
+#include <thread>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "geometry_msgs/msg/twist.hpp"
 #include "lifecycle_msgs/msg/transition.hpp"
 #include "mona_safety/safety_node.hpp"
-#include "geometry_msgs/msg/twist.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_srvs/srv/trigger.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 
 using namespace std::chrono_literals;
 
@@ -39,121 +40,121 @@ using namespace std::chrono_literals;
  */
 class SafetyLogicFixture : public ::testing::Test {
 protected:
-    // --- Global Setup/Teardown for the Test Suite ---
-    static void SetUpTestSuite() {
-        setenv("ROS_DOMAIN_ID", "12", 1);
-        rclcpp::init(0, nullptr);
-    }
+	// --- Global Setup/Teardown for the Test Suite ---
+	static void SetUpTestSuite() {
+		setenv("ROS_DOMAIN_ID", "12", 1);
+		rclcpp::init(0, nullptr);
+	}
 
-    static void TearDownTestSuite() {
-        rclcpp::shutdown();
-    }
+	static void TearDownTestSuite() {
+		rclcpp::shutdown();
+	}
 
-    // --- Per-Test Setup/Teardown ---
-    void SetUp() override {
-        // 1. Initialize node with test-specific hard limits
-        rclcpp::NodeOptions options;
-        options.parameter_overrides(
-        {
-            {"max_speed_normal", 1.0},
-            {"max_speed_degraded", 0.3}
-        });
+	// --- Per-Test Setup/Teardown ---
+	void SetUp() override {
+		// 1. Initialize node with test-specific hard limits
+		rclcpp::NodeOptions options;
+		options.parameter_overrides(
+		{
+			{"max_speed_normal", 1.0},
+			{"max_speed_degraded", 0.3}
+		});
 
-        node_ = std::make_shared<mona_safety::SafetyNode>(options);
+		node_ = std::make_shared<mona_safety::SafetyNode>(options);
 
-        // 2. Transition node to ACTIVE state
-        node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
-        node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
+		// 2. Transition node to ACTIVE state
+		node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+		node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 
-        // 3. Create stimulator node for publishers and service clients
-        test_node_ = std::make_shared<rclcpp::Node>("safety_test_stimulator");
+		// 3. Create stimulator node for publishers and service clients
+		test_node_ = std::make_shared<rclcpp::Node>("safety_test_stimulator");
 
-        // Publisher to simulate commands coming from TwistMux
-        cmd_pub_  = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_smoothed", 10);
-        fdir_pub_ = test_node_->create_publisher<mona_msgs::msg::FdirState>(
-            "system/health_state", 10);
+		// Publisher to simulate commands coming from TwistMux
+		cmd_pub_  = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_smoothed", 10);
+		fdir_pub_ = test_node_->create_publisher<mona_msgs::msg::FdirState>(
+			"system/health_state", 10);
 
-        // Service clients for E-STOP interactions
-        estop_client_       = test_node_->create_client<std_srvs::srv::Trigger>("emergency_stop");
-        estop_reset_client_ = test_node_->create_client<std_srvs::srv::Trigger>(
-            "emergency_stop_reset");
+		// Service clients for E-STOP interactions
+		estop_client_       = test_node_->create_client<std_srvs::srv::Trigger>("emergency_stop");
+		estop_reset_client_ = test_node_->create_client<std_srvs::srv::Trigger>(
+			"emergency_stop_reset");
 
-        // 4. Subscribers to monitor output to physical hardware
-        motor_sub_ = test_node_->create_subscription<geometry_msgs::msg::Twist>(
-            "hardware/motor_cmd", 10,
-            [this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-                latest_motor_cmd_ = *msg;
-                cmd_received_     = true;
-            });
+		// 4. Subscribers to monitor output to physical hardware
+		motor_sub_ = test_node_->create_subscription<geometry_msgs::msg::Twist>(
+			"hardware/motor_cmd", 10,
+			[this](const geometry_msgs::msg::Twist::SharedPtr msg) {
+				latest_motor_cmd_ = *msg;
+				cmd_received_     = true;
+			});
 
-        contactor_sub_ = test_node_->create_subscription<std_msgs::msg::Bool>(
-            "hardware/contactors", 10,
-            [this](const std_msgs::msg::Bool::SharedPtr msg) {
-                latest_contactor_state_ = msg->data;
-            });
+		contactor_sub_ = test_node_->create_subscription<std_msgs::msg::Bool>(
+			"hardware/contactors", 10,
+			[this](const std_msgs::msg::Bool::SharedPtr msg) {
+				latest_contactor_state_ = msg->data;
+			});
 
-        // Initialize state
-        cmd_received_                     = false;
-        latest_contactor_state_           = false;
-        current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
+		// Initialize state
+		cmd_received_                     = false;
+		latest_contactor_state_           = false;
+		current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
 
-        fdir_timer_ = test_node_->create_wall_timer(
-            50ms,
-            [this]() {
-                fdir_pub_->publish(current_fdir_state_);
-            }
-        );
+		fdir_timer_ = test_node_->create_wall_timer(
+			50ms,
+			[this]() {
+				fdir_pub_->publish(current_fdir_state_);
+			}
+		);
 
-        // Ensure service servers are ready before tests begin
-        estop_client_->wait_for_service(std::chrono::seconds(1));
-        estop_reset_client_->wait_for_service(std::chrono::seconds(1));
+		// Ensure service servers are ready before tests begin
+		estop_client_->wait_for_service(std::chrono::seconds(1));
+		estop_reset_client_->wait_for_service(std::chrono::seconds(1));
 
-        // Ensure DDS discovery completes before tests start to prevent lost messages
-        spin_for_milliseconds(150);
-    }
+		// Ensure DDS discovery completes before tests start to prevent lost messages
+		spin_for_milliseconds(150);
+	}
 
-    void TearDown() override {
-        node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);
-        node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN);
-        node_.reset();
-        test_node_.reset();
-    }
+	void TearDown() override {
+		node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);
+		node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN);
+		node_.reset();
+		test_node_.reset();
+	}
 
-    /**
-     * @brief Utility function to deterministically spin nodes and allow timers/callbacks to fire.
-     * @param duration_ms Time to spin in milliseconds.
-     */
-    void spin_for_milliseconds(int duration_ms) {
-        rclcpp::executors::SingleThreadedExecutor executor;
-        executor.add_node(node_->get_node_base_interface());
-        executor.add_node(test_node_->get_node_base_interface());
+	/**
+	 * @brief Utility function to deterministically spin nodes and allow timers/callbacks to fire.
+	 * @param duration_ms Time to spin in milliseconds.
+	 */
+	void spin_for_milliseconds(int duration_ms) {
+		rclcpp::executors::SingleThreadedExecutor executor;
+		executor.add_node(node_->get_node_base_interface());
+		executor.add_node(test_node_->get_node_base_interface());
 
-        auto start_time = std::chrono::steady_clock::now();
-        while (std::chrono::steady_clock::now() - start_time <
-            std::chrono::milliseconds(duration_ms))
-        {
-            executor.spin_some(10ms);
-            std::this_thread::sleep_for(10ms);
-        }
-    }
+		auto start_time = std::chrono::steady_clock::now();
+		while (std::chrono::steady_clock::now() - start_time <
+		    std::chrono::milliseconds(duration_ms))
+		{
+			executor.spin_some(10ms);
+			std::this_thread::sleep_for(10ms);
+		}
+	}
 
-    std::shared_ptr<mona_safety::SafetyNode> node_;
-    std::shared_ptr<rclcpp::Node> test_node_;
+	std::shared_ptr<mona_safety::SafetyNode> node_;
+	std::shared_ptr<rclcpp::Node> test_node_;
 
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
-    rclcpp::Publisher<mona_msgs::msg::FdirState>::SharedPtr fdir_pub_;
-    rclcpp::TimerBase::SharedPtr fdir_timer_;
+	rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
+	rclcpp::Publisher<mona_msgs::msg::FdirState>::SharedPtr fdir_pub_;
+	rclcpp::TimerBase::SharedPtr fdir_timer_;
 
-    rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr estop_client_;
-    rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr estop_reset_client_;
+	rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr estop_client_;
+	rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr estop_reset_client_;
 
-    rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr motor_sub_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr contactor_sub_;
+	rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr motor_sub_;
+	rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr contactor_sub_;
 
-    mona_msgs::msg::FdirState current_fdir_state_;
-    geometry_msgs::msg::Twist latest_motor_cmd_;
-    bool latest_contactor_state_;
-    bool cmd_received_;
+	mona_msgs::msg::FdirState current_fdir_state_;
+	geometry_msgs::msg::Twist latest_motor_cmd_;
+	bool latest_contactor_state_;
+	bool cmd_received_;
 };
 
 /* ========================================================================== */
@@ -162,307 +163,307 @@ protected:
 
 // Test 1: Verify contactors are closed automatically when activated
 TEST_F(SafetyLogicFixture, ContactorsClosedOnActivation) {
-    // Arrange: Node is already activated in SetUp(), FDIR heartbeat is running
+	// Arrange: Node is already activated in SetUp(), FDIR heartbeat is running
 
-    // Act: Spin to allow DDS discovery and initial state publishing
-    spin_for_milliseconds(150);
+	// Act: Spin to allow DDS discovery and initial state publishing
+	spin_for_milliseconds(150);
 
-    // Assert: Contactors must be engaged (true) for normal operation
-    EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close upon activation!";
+	// Assert: Contactors must be engaged (true) for normal operation
+	EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close upon activation!";
 }
 
 // Test 2: Verify Hard Velocity Limits (Safety bounds enforcement)
 TEST_F(SafetyLogicFixture, EnforcesHardVelocityLimits) {
-    // Arrange: Wait for network discovery
-    spin_for_milliseconds(150);
+	// Arrange: Wait for network discovery
+	spin_for_milliseconds(150);
 
-    // Act: Send an extremely dangerous speed command exceeding normal limits
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x  = 10.0;
-    input_msg.linear.y  = -2.0;
-    input_msg.angular.z = -5.0;
+	// Act: Send an extremely dangerous speed command exceeding normal limits
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x  = 10.0;
+	input_msg.linear.y  = -2.0;
+	input_msg.angular.z = -5.0;
 
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert: The planar speed (vector magnitude) is limited to max_speed_normal (1.0 m/s),
-    // the commanded direction is preserved, and the yaw rate is limited to
-    // max_angular_speed_normal (1.0 rad/s).
-    ASSERT_TRUE(cmd_received_);
-    const double planar_speed = std::hypot(latest_motor_cmd_.linear.x, latest_motor_cmd_.linear.y);
-    EXPECT_NEAR(planar_speed, 1.0, 1e-9) << "Planar speed exceeded max_speed_normal!";
-    EXPECT_NEAR(
-        latest_motor_cmd_.linear.y / latest_motor_cmd_.linear.x, -0.2, 1e-9)
-        << "Commanded direction was not preserved!";
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, -1.0) << "Angular velocity exceeded limit!";
+	// Assert: The planar speed (vector magnitude) is limited to max_speed_normal (1.0 m/s),
+	// the commanded direction is preserved, and the yaw rate is limited to
+	// max_angular_speed_normal (1.0 rad/s).
+	ASSERT_TRUE(cmd_received_);
+	const double planar_speed = std::hypot(latest_motor_cmd_.linear.x, latest_motor_cmd_.linear.y);
+	EXPECT_NEAR(planar_speed, 1.0, 1e-9) << "Planar speed exceeded max_speed_normal!";
+	EXPECT_NEAR(
+		latest_motor_cmd_.linear.y / latest_motor_cmd_.linear.x, -0.2, 1e-9)
+	    << "Commanded direction was not preserved!";
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, -1.0) << "Angular velocity exceeded limit!";
 }
 
 // Test 2b: Verify that a diagonal command cannot exceed the planar speed limit
 TEST_F(SafetyLogicFixture, LimitsDiagonalPlanarSpeed) {
-    spin_for_milliseconds(150);
+	spin_for_milliseconds(150);
 
-    // Act: Command 1.0 m/s on both axes (1.41 m/s resultant on a holonomic base)
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 1.0;
-    input_msg.linear.y = 1.0;
+	// Act: Command 1.0 m/s on both axes (1.41 m/s resultant on a holonomic base)
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 1.0;
+	input_msg.linear.y = 1.0;
 
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert: The resultant speed equals the limit, not sqrt(2) times the limit
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_NEAR(
-        std::hypot(latest_motor_cmd_.linear.x, latest_motor_cmd_.linear.y), 1.0, 1e-9)
-        << "Diagonal motion exceeded max_speed_normal!";
+	// Assert: The resultant speed equals the limit, not sqrt(2) times the limit
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_NEAR(
+		std::hypot(latest_motor_cmd_.linear.x, latest_motor_cmd_.linear.y), 1.0, 1e-9)
+	    << "Diagonal motion exceeded max_speed_normal!";
 }
 
 // Test 2c: Verify that non-finite commands are replaced by a stop
 TEST_F(SafetyLogicFixture, RejectsNonFiniteCommand) {
-    spin_for_milliseconds(150);
+	spin_for_milliseconds(150);
 
-    // Act: Command NaN, which would pass every comparison-based limit
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = std::numeric_limits<double>::quiet_NaN();
+	// Act: Command NaN, which would pass every comparison-based limit
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = std::numeric_limits<double>::quiet_NaN();
 
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert: The motor command is a finite stop
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Non-finite command reached the motors!";
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.y, 0.0);
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, 0.0);
+	// Assert: The motor command is a finite stop
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Non-finite command reached the motors!";
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.y, 0.0);
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, 0.0);
 }
 
 // Test 3: Verify E-STOP Service triggers hardware disconnect
 TEST_F(SafetyLogicFixture, EstopServiceOpensContactors) {
-    // Arrange: Ensure system is running and contactors are closed
-    spin_for_milliseconds(150);
+	// Arrange: Ensure system is running and contactors are closed
+	spin_for_milliseconds(150);
 
-    // Act: Trigger software E-STOP via service call
-    auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-    auto result  = estop_client_->async_send_request(request);
-    spin_for_milliseconds(200);
+	// Act: Trigger software E-STOP via service call
+	auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+	auto result  = estop_client_->async_send_request(request);
+	spin_for_milliseconds(200);
 
-    // Assert: Hardware contactors must be physically disconnected (false)
-    EXPECT_FALSE(latest_contactor_state_) << "Contactors remained closed during E-STOP!";
+	// Assert: Hardware contactors must be physically disconnected (false)
+	EXPECT_FALSE(latest_contactor_state_) << "Contactors remained closed during E-STOP!";
 }
 
 // Test 4: Verify E-STOP overrides and zeroes out incoming velocity commands
 TEST_F(SafetyLogicFixture, EstopZeroesOutVelocity) {
-    // Arrange: Ensure system is running, then trigger E-STOP
-    spin_for_milliseconds(150);
-    auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-    estop_client_->async_send_request(request);
-    spin_for_milliseconds(150);
+	// Arrange: Ensure system is running, then trigger E-STOP
+	spin_for_milliseconds(150);
+	auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+	estop_client_->async_send_request(request);
+	spin_for_milliseconds(150);
 
-    // Act: Try to move the robot while E-STOP is active
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 1.0;
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	// Act: Try to move the robot while E-STOP is active
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 1.0;
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert: Regardless of input, output to motors must be absolute zero
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion NOT allowed during E-STOP!";
+	// Assert: Regardless of input, output to motors must be absolute zero
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion NOT allowed during E-STOP!";
 }
 
 // Test 5: Verify E-STOP Reset restores system to operational state
 TEST_F(SafetyLogicFixture, EstopResetRestoresOperation) {
-    // Arrange: Put system into E-STOP mode
-    spin_for_milliseconds(150);
-    auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-    estop_client_->async_send_request(request);
-    spin_for_milliseconds(150);
-    EXPECT_FALSE(latest_contactor_state_);
+	// Arrange: Put system into E-STOP mode
+	spin_for_milliseconds(150);
+	auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
+	estop_client_->async_send_request(request);
+	spin_for_milliseconds(150);
+	EXPECT_FALSE(latest_contactor_state_);
 
-    // Act: Trigger Reset via service
-    auto reset_req = std::make_shared<std_srvs::srv::Trigger::Request>();
-    estop_reset_client_->async_send_request(reset_req);
-    spin_for_milliseconds(150);
+	// Act: Trigger Reset via service
+	auto reset_req = std::make_shared<std_srvs::srv::Trigger::Request>();
+	estop_reset_client_->async_send_request(reset_req);
+	spin_for_milliseconds(150);
 
-    // Assert: Contactors should close again, restoring power to drives
-    EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after E-STOP Reset!";
+	// Assert: Contactors should close again, restoring power to drives
+	EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after E-STOP Reset!";
 }
 
 // Test 6: Verify that a reset alone never restores power without FDIR clearance
 TEST_F(SafetyLogicFixture, EstopResetRequiresFdirClearance) {
-    // Arrange: Trigger the E-STOP, then stop the simulated FDIR health stream
-    spin_for_milliseconds(150);
-    estop_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
-    spin_for_milliseconds(150);
-    fdir_timer_->cancel();
-    spin_for_milliseconds(100);
+	// Arrange: Trigger the E-STOP, then stop the simulated FDIR health stream
+	spin_for_milliseconds(150);
+	estop_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+	spin_for_milliseconds(150);
+	fdir_timer_->cancel();
+	spin_for_milliseconds(100);
 
-    // Act: Reset the E-STOP while no FDIR clearance arrives
-    estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
-    spin_for_milliseconds(200);
+	// Act: Reset the E-STOP while no FDIR clearance arrives
+	estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+	spin_for_milliseconds(200);
 
-    // Assert: The contactors stay open and motion commands are replaced by a stop
-    EXPECT_FALSE(latest_contactor_state_) << "Reset closed the contactors without FDIR clearance!";
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 0.5;
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR clearance!";
+	// Assert: The contactors stay open and motion commands are replaced by a stop
+	EXPECT_FALSE(latest_contactor_state_) << "Reset closed the contactors without FDIR clearance!";
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 0.5;
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR clearance!";
 
-    // Act: FDIR clearance resumes after a silence longer than fdir_state_timeout
-    fdir_timer_->reset();
-    spin_for_milliseconds(150);
+	// Act: FDIR clearance resumes after a silence longer than fdir_state_timeout
+	fdir_timer_->reset();
+	spin_for_milliseconds(150);
 
-    // Assert: The loss of supervision is latched; FDIR clearance alone restores nothing
-    EXPECT_FALSE(latest_contactor_state_) << "Latched loss of supervision released by FDIR!";
+	// Assert: The loss of supervision is latched; FDIR clearance alone restores nothing
+	EXPECT_FALSE(latest_contactor_state_) << "Latched loss of supervision released by FDIR!";
 
-    // Act: Reset with FDIR supervision present
-    estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
-    spin_for_milliseconds(200);
+	// Act: Reset with FDIR supervision present
+	estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+	spin_for_milliseconds(200);
 
-    // Assert: Power is restored only after a reset and FDIR clearance
-    EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after reset and clearance!";
+	// Assert: Power is restored only after a reset and FDIR clearance
+	EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after reset and clearance!";
 }
 
 // Test 7: Verify that an unknown FDIR state halts motion and opens the contactors
 TEST_F(SafetyLogicFixture, UnknownFdirStateHaltsMotion) {
-    spin_for_milliseconds(150);
-    ASSERT_TRUE(latest_contactor_state_);
+	spin_for_milliseconds(150);
+	ASSERT_TRUE(latest_contactor_state_);
 
-    // Act: FDIR reports an undefined state ID
-    current_fdir_state_.current_state = 99;
-    spin_for_milliseconds(150);
+	// Act: FDIR reports an undefined state ID
+	current_fdir_state_.current_state = 99;
+	spin_for_milliseconds(150);
 
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 0.5;
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 0.5;
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert
-    EXPECT_FALSE(latest_contactor_state_) << "Contactors closed in an undefined FDIR state!";
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_DOUBLE_EQ(
-        latest_motor_cmd_.linear.x,
-        0.0) << "Motion allowed in an undefined FDIR state!";
+	// Assert
+	EXPECT_FALSE(latest_contactor_state_) << "Contactors closed in an undefined FDIR state!";
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_DOUBLE_EQ(
+		latest_motor_cmd_.linear.x,
+		0.0) << "Motion allowed in an undefined FDIR state!";
 }
 
 // Test 8: Silence of FDIR latches PROTECTIVE_STOP until a reset
 TEST_F(SafetyLogicFixture, FdirSilenceLatchesProtectiveStop) {
-    spin_for_milliseconds(150);
-    ASSERT_TRUE(latest_contactor_state_);
+	spin_for_milliseconds(150);
+	ASSERT_TRUE(latest_contactor_state_);
 
-    // Act: FDIR stops publishing for longer than fdir_state_timeout (0.3 s)
-    fdir_timer_->cancel();
-    spin_for_milliseconds(400);
+	// Act: FDIR stops publishing for longer than fdir_state_timeout (0.3 s)
+	fdir_timer_->cancel();
+	spin_for_milliseconds(400);
 
-    // Assert: Motion commands are replaced by a stop
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 0.5;
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR supervision!";
+	// Assert: Motion commands are replaced by a stop
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 0.5;
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion allowed without FDIR supervision!";
 
-    // Act: FDIR resumes with SOFTWARE_OK
-    fdir_timer_->reset();
-    spin_for_milliseconds(200);
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	// Act: FDIR resumes with SOFTWARE_OK
+	fdir_timer_->reset();
+	spin_for_milliseconds(200);
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert: The loss of supervision stays latched (no automatic restart)
-    EXPECT_DOUBLE_EQ(
-        latest_motor_cmd_.linear.x,
-        0.0) << "Automatic restart after supervision loss!";
+	// Assert: The loss of supervision stays latched (no automatic restart)
+	EXPECT_DOUBLE_EQ(
+		latest_motor_cmd_.linear.x,
+		0.0) << "Automatic restart after supervision loss!";
 
-    // Act: Reset, then FDIR clearance
-    estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
-    spin_for_milliseconds(200);
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	// Act: Reset, then FDIR clearance
+	estop_reset_client_->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+	spin_for_milliseconds(200);
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    // Assert: Motion is permitted again
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5) << "Motion not restored after reset!";
+	// Assert: Motion is permitted again
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5) << "Motion not restored after reset!";
 }
 
 // Test 9: Regular FDIR states do not trip the watchdog
 TEST_F(SafetyLogicFixture, RegularFdirStatesKeepOperation) {
-    spin_for_milliseconds(1000);
+	spin_for_milliseconds(1000);
 
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 0.5;
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 0.5;
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
 
-    ASSERT_TRUE(cmd_received_);
-    EXPECT_TRUE(latest_contactor_state_);
-    EXPECT_DOUBLE_EQ(
-        latest_motor_cmd_.linear.x,
-        0.5) << "Watchdog tripped with regular FDIR states!";
+	ASSERT_TRUE(cmd_received_);
+	EXPECT_TRUE(latest_contactor_state_);
+	EXPECT_DOUBLE_EQ(
+		latest_motor_cmd_.linear.x,
+		0.5) << "Watchdog tripped with regular FDIR states!";
 }
 
 // Test 10: A stale command stream is replaced by zero velocity
 TEST_F(SafetyLogicFixture, StaleCommandStreamPublishesStop) {
-    spin_for_milliseconds(150);
+	spin_for_milliseconds(150);
 
-    geometry_msgs::msg::Twist input_msg;
-    input_msg.linear.x = 0.5;
-    cmd_pub_->publish(input_msg);
-    spin_for_milliseconds(100);
-    ASSERT_TRUE(cmd_received_);
-    ASSERT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5);
+	geometry_msgs::msg::Twist input_msg;
+	input_msg.linear.x = 0.5;
+	cmd_pub_->publish(input_msg);
+	spin_for_milliseconds(100);
+	ASSERT_TRUE(cmd_received_);
+	ASSERT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5);
 
-    // Act: No further command for longer than command_timeout (0.5 s)
-    spin_for_milliseconds(700);
+	// Act: No further command for longer than command_timeout (0.5 s)
+	spin_for_milliseconds(700);
 
-    // Assert: The last command is not held; zero velocity is published
-    EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Stale command was held!";
-    EXPECT_TRUE(latest_contactor_state_) << "A stale command stream changed the safety state!";
+	// Assert: The last command is not held; zero velocity is published
+	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Stale command was held!";
+	EXPECT_TRUE(latest_contactor_state_) << "A stale command stream changed the safety state!";
 }
 
 // Test 11: Motion beyond the permitted stopping time in PROTECTIVE_STOP escalates
 TEST_F(SafetyLogicFixture, MotionAfterStoppingTimeEscalatesToEmergency) {
-    // Arrange: Odometry reports a constant 0.3 m/s (the robot does not brake)
-    auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-    auto odom_timer = test_node_->create_wall_timer(
-        20ms, [odom_pub]() {
-            nav_msgs::msg::Odometry odom;
-            odom.twist.twist.linear.x = 0.3;
-            odom_pub->publish(odom);
-        });
-    spin_for_milliseconds(300);
-    ASSERT_TRUE(latest_contactor_state_);
+	// Arrange: Odometry reports a constant 0.3 m/s (the robot does not brake)
+	auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+	auto odom_timer = test_node_->create_wall_timer(
+		20ms, [odom_pub]() {
+			nav_msgs::msg::Odometry odom;
+			odom.twist.twist.linear.x = 0.3;
+			odom_pub->publish(odom);
+		});
+	spin_for_milliseconds(300);
+	ASSERT_TRUE(latest_contactor_state_);
 
-    // Act: FDIR commands PROTECTIVE_STOP; permitted stopping time 0.3 / 1.0 + 0.5 = 0.8 s
-    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
-    spin_for_milliseconds(500);
+	// Act: FDIR commands PROTECTIVE_STOP; permitted stopping time 0.3 / 1.0 + 0.5 = 0.8 s
+	current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+	spin_for_milliseconds(500);
 
-    // Assert: Braking time is granted; no escalation yet
-    EXPECT_TRUE(latest_contactor_state_) << "Escalated before the permitted stopping time!";
+	// Assert: Braking time is granted; no escalation yet
+	EXPECT_TRUE(latest_contactor_state_) << "Escalated before the permitted stopping time!";
 
-    spin_for_milliseconds(700);
+	spin_for_milliseconds(700);
 
-    // Assert: Standstill not reached in time: EMERGENCY with open contactors
-    EXPECT_FALSE(latest_contactor_state_) << "Motion after the stopping time was not escalated!";
+	// Assert: Standstill not reached in time: EMERGENCY with open contactors
+	EXPECT_FALSE(latest_contactor_state_) << "Motion after the stopping time was not escalated!";
 }
 
 // Test 12: A controlled stop within the permitted stopping time does not escalate
 TEST_F(SafetyLogicFixture, ControlledStopWithinTimeDoesNotEscalate) {
-    // Arrange: Odometry reports 0.3 m/s until the stop, then standstill
-    auto moving     = std::make_shared<bool>(true);
-    auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
-    auto odom_timer = test_node_->create_wall_timer(
-        20ms, [odom_pub, moving]() {
-            nav_msgs::msg::Odometry odom;
-            odom.twist.twist.linear.x = *moving ? 0.3 : 0.0;
-            odom_pub->publish(odom);
-        });
-    spin_for_milliseconds(300);
-    ASSERT_TRUE(latest_contactor_state_);
+	// Arrange: Odometry reports 0.3 m/s until the stop, then standstill
+	auto moving     = std::make_shared<bool>(true);
+	auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+	auto odom_timer = test_node_->create_wall_timer(
+		20ms, [odom_pub, moving]() {
+			nav_msgs::msg::Odometry odom;
+			odom.twist.twist.linear.x = *moving ? 0.3 : 0.0;
+			odom_pub->publish(odom);
+		});
+	spin_for_milliseconds(300);
+	ASSERT_TRUE(latest_contactor_state_);
 
-    // Act: PROTECTIVE_STOP; the robot reaches standstill after 0.4 s (< 0.8 s)
-    current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
-    spin_for_milliseconds(400);
-    *moving = false;
-    spin_for_milliseconds(1000);
+	// Act: PROTECTIVE_STOP; the robot reaches standstill after 0.4 s (< 0.8 s)
+	current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
+	spin_for_milliseconds(400);
+	*moving = false;
+	spin_for_milliseconds(1000);
 
-    // Assert: No escalation; the contactors stay closed for the controlled stop
-    EXPECT_TRUE(latest_contactor_state_) << "A controlled stop within time was escalated!";
+	// Assert: No escalation; the contactors stay closed for the controlled stop
+	EXPECT_TRUE(latest_contactor_state_) << "A controlled stop within time was escalated!";
 }
