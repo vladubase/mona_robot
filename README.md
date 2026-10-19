@@ -76,8 +76,8 @@ make shell
 # Execute full CI pipeline (Linters + GTest)
 make ci
 
-# Format all C++/Python source code
-make format
+# Format all C++/Python/CMake source code and verify it with the CI linters
+make format_code
 
 # Gracefully stop all robots, the simulation, and clean up networks
 make down

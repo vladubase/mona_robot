@@ -15,7 +15,7 @@ Before opening a Pull Request, every developer is required to run the local Cont
 ```
 **Execution variant b:**
 ```bash
-make format
+make format_code
 make ci
 ```
 

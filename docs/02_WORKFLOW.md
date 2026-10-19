@@ -40,9 +40,11 @@ This guarantees conformity to our memory safety standards and FSM lifecycle cont
 
 Execute the unified quality gate directly from the host machine utilizing the root Makefile:
 ```bash
-# Formats code (Black, Uncrustify) and runs Flake8, Cppcheck, Cpplint, and GTest suites
-make format
+# Formats code (Uncrustify, Black) and verifies it with the CI linters
+# (uncrustify, cpplint, cppcheck, flake8, lint_cmake, xmllint, copyright)
+make format_code
 
+# Builds and runs all GTest suites plus the linters
 make ci
 ```
 
