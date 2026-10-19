@@ -57,23 +57,19 @@ FdirManagerNode::FdirManagerNode(const rclcpp::NodeOptions &options)
 	qos_profile.reliable();
 	qos_profile.transient_local();
 
-	health_state_pub_ = this->create_publisher<mona_msgs::msg::FdirState>(
-		"system/health_state", qos_profile);
+	health_state_pub_ = this->create_publisher<mona_msgs::msg::FdirState>("system/health_state", qos_profile);
 
 	// Initialize Hardware Watchdog Heartbeat
 	// Using Best Effort QoS to minimize latency; dropped packets are treated as faults by PLC.
 	rclcpp::QoS heartbeat_qos(10);
 	heartbeat_qos.best_effort();
 
-	heartbeat_pub_ = this->create_publisher<std_msgs::msg::Bool>(
-		"hardware/fdir_heartbeat", heartbeat_qos);
+	heartbeat_pub_ = this->create_publisher<std_msgs::msg::Bool>("hardware/fdir_heartbeat", heartbeat_qos);
 
 	// Emergency Hardware Actuation
-	contactor_pub_ = this->create_publisher<std_msgs::msg::Bool>(
-		"hardware/contactors", 10);
+	contactor_pub_ = this->create_publisher<std_msgs::msg::Bool>("hardware/contactors", 10);
 
-	cmd_vel_override_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
-		"hardware/motor_cmd", 10);
+	cmd_vel_override_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("hardware/motor_cmd", 10);
 
 	// Parse configurations and provision dynamic interfaces
 	init_managed_nodes();
@@ -172,7 +168,7 @@ void FdirManagerNode::init_managed_nodes() {
 
 		// Tier evaluation: Invalid tier halts system boot.
 		std::string tier_str = this->get_parameter(prefix + "tier").as_string();
-		Tier        tier{Tier::FATAL};  // Most restrictive tier until parsed
+		Tier tier{Tier::FATAL};  // Most restrictive tier until parsed
 
 		if (tier_str == "FATAL") {
 			tier = Tier::FATAL;
@@ -183,8 +179,7 @@ void FdirManagerNode::init_managed_nodes() {
 		} else {
 			RCLCPP_FATAL(
 				this->get_logger(),
-				"[FDIR] CONFIGURATION FAULT: Unknown tier '%s' for '%s'. "
-				"Validation failed.",
+				"[FDIR] CONFIGURATION FAULT: Unknown tier '%s' for '%s'. Validation failed.",
 				tier_str.c_str(), node_name.c_str());
 			throw std::runtime_error("Invalid safety tier configuration.");
 		}
@@ -201,22 +196,20 @@ void FdirManagerNode::init_managed_nodes() {
 		} else {
 			RCLCPP_FATAL(
 				this->get_logger(),
-				"[FDIR] CONFIGURATION FAULT: Unknown reset_mechanism '%s' for '%s'. "
-				"Validation failed.",
+				"[FDIR] CONFIGURATION FAULT: Unknown reset_mechanism '%s' for '%s'. Validation failed.",
 				mech_str.c_str(), node_name.c_str());
 			throw std::runtime_error("Invalid reset_mechanism configuration.");
 		}
 
 		// Timing and hardware endpoints
-		double      startup_time = this->get_parameter(prefix + "startup_time").as_double();
-		std::string reset_topic  = this->get_parameter(prefix + "reset_topic").as_string();
+		double startup_time     = this->get_parameter(prefix + "startup_time").as_double();
+		std::string reset_topic = this->get_parameter(prefix + "reset_topic").as_string();
 
 		// Cross-validation for hardware relays
 		if (mechanism == ResetMechanism::HARDWARE_RELAY && reset_topic.empty()) {
 			RCLCPP_FATAL(
 				this->get_logger(),
-				"[FDIR] CONFIGURATION FAULT: 'hardware_relay' specified for '%s' "
-				"but 'reset_topic' is empty.",
+				"[FDIR] CONFIGURATION FAULT: 'hardware_relay' specified for '%s' but 'reset_topic' is empty.",
 				node_name.c_str());
 			throw std::runtime_error("Missing reset_topic for hardware relay mechanism.");
 		}
@@ -230,11 +223,11 @@ void FdirManagerNode::init_managed_nodes() {
 			this->get_clock()->now(),
 			false,
 			startup_time,
-			global_power_off,  // Applies globally defined power-off timing
+			global_power_off,   // Applies globally defined power-off timing
 			mechanism,
 			reset_topic,
-			false,  // was_active: the component has not reached ACTIVE yet
-			0       // missed_polls
+			false,              // was_active: the component has not reached ACTIVE yet
+			0                   // missed_polls
 		};
 
 		// 2. Provision Communication Clients (Action interfaces)
@@ -247,7 +240,8 @@ void FdirManagerNode::init_managed_nodes() {
 		// 3. Provision Hardware Relay Publishers (Only if required)
 		if (mechanism == ResetMechanism::HARDWARE_RELAY) {
 			relay_pubs_[node_name] = this->create_publisher<std_msgs::msg::Bool>(
-				reset_topic, rclcpp::QoS(1).transient_local());
+				reset_topic,
+				rclcpp::QoS(1).transient_local());
 		}
 
 		RCLCPP_INFO(
@@ -272,19 +266,16 @@ uint8_t FdirManagerNode::get_node_state(const std::string &node_name) {
 		if (!client->service_is_ready()) {
 			RCLCPP_DEBUG(
 				this->get_logger(),
-				"[FDIR] OFFLINE: get_state service for '%s' "
-				"is not ready (Expected during reset).",
+				"[FDIR] OFFLINE: get_state service for '%s' is not ready (Expected during reset).",
 				node_name.c_str());
 			return lifecycle_msgs::msg::State::PRIMARY_STATE_UNKNOWN;
 		}
 
-		auto request = std::make_shared<lifecycle_msgs::srv::GetState::Request>();
-		auto future  = client->async_send_request(request);
+		auto request    = std::make_shared<lifecycle_msgs::srv::GetState::Request>();
+		auto future     = client->async_send_request(request);
 
 		// Block with a strict deterministic timeout
-		if (future.wait_for(std::chrono::milliseconds(service_timeout_ms_)) ==
-		    std::future_status::ready)
-		{
+		if (future.wait_for(std::chrono::milliseconds(service_timeout_ms_)) == std::future_status::ready) {
 			// If the target node was destroyed while we were waiting,
 			// future.get() will throw a std::future_error.
 			auto response = future.get();
@@ -341,21 +332,18 @@ bool FdirManagerNode::change_node_state(const std::string &node_name, uint8_t tr
 		if (!client->service_is_ready()) {
 			RCLCPP_DEBUG(
 				this->get_logger(),
-				"[FDIR] OFFLINE: change_state service for '%s' "
-				"is not ready (Expected during reset).",
+				"[FDIR] OFFLINE: change_state service for '%s' is not ready (Expected during reset).",
 				node_name.c_str());
 			return false;
 		}
 
-		auto request           = std::make_shared<lifecycle_msgs::srv::ChangeState::Request>();
-		request->transition.id = transition_id;
+		auto request            = std::make_shared<lifecycle_msgs::srv::ChangeState::Request>();
+		request->transition.id  = transition_id;
 
 		auto future = client->async_send_request(request);
 
 		// Strict deterministic execution bound
-		if (future.wait_for(std::chrono::milliseconds(service_timeout_ms_)) ==
-		    std::future_status::ready)
-		{
+		if (future.wait_for(std::chrono::milliseconds(service_timeout_ms_)) == std::future_status::ready) {
 			auto response = future.get();
 			if (response) {
 				return response->success;
@@ -407,13 +395,10 @@ void FdirManagerNode::monitor_loop() {
 	bool all_active = true;
 
 	for (auto & [name, node] : managed_nodes_) {
-		// Bypass evaluation if the component is designated
-		// as permanently defective (Safety Lockout)
+		// Bypass evaluation if the component is designated as permanently defective (Safety Lockout)
 		if (node.is_defective) {
-			all_active   = false;
-			global_state = std::max(
-				global_state,
-				mona_msgs::msg::FdirState::STATE_EMERGENCY);
+			all_active      = false;
+			global_state    = std::max(global_state, mona_msgs::msg::FdirState::STATE_EMERGENCY);
 			continue;
 		}
 
@@ -429,8 +414,8 @@ void FdirManagerNode::monitor_loop() {
 			node.missed_polls++;
 			if (node.missed_polls < unresponsive_poll_limit_) {
 				if (node.current_state != lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
-					all_active   = false;
-					global_state = std::max(global_state, failure_state(node));
+					all_active      = false;
+					global_state    = std::max(global_state, failure_state(node));
 				}
 				continue;
 			}
@@ -441,14 +426,13 @@ void FdirManagerNode::monitor_loop() {
 		if ((node.is_defective) && (state == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE)) {
 			RCLCPP_FATAL(
 				this->get_logger(),
-				"[FDIR] SECURITY BREACH: Locked-out defective component '%s' "
-				"illegally reported ACTIVE state! "
+				"[FDIR] SECURITY BREACH: Locked-out defective component '%s' illegally reported ACTIVE state! "
 				"System integrity compromised. Engaging hard lock.",
 				name.c_str());
 
 			// Latch the entire system into a non-recoverable FATAL state
-			global_state = mona_msgs::msg::FdirState::STATE_EMERGENCY;
-			all_active   = false;
+			global_state    = mona_msgs::msg::FdirState::STATE_EMERGENCY;
+			all_active      = false;
 			continue;
 		}
 
@@ -460,36 +444,34 @@ void FdirManagerNode::monitor_loop() {
 						COLOR_BLUE "[FDIR] '%s' stabilized and ACTIVE." COLOR_RESET,
 						name.c_str());
 				}
-				node.retry_count = 0;
-				node.phase       = RecoveryPhase::NOMINAL;
-				node.was_active  = true;
+				node.retry_count    = 0;
+				node.phase          = RecoveryPhase::NOMINAL;
+				node.was_active     = true;
 				break;
 
 			case lifecycle_msgs::msg::State::PRIMARY_STATE_UNCONFIGURED:
-				all_active   = false;
-				global_state = std::max(global_state, failure_state(node));
+				all_active      = false;
+				global_state    = std::max(global_state, failure_state(node));
 
 				// Component requires initialization
 				change_node_state(name, lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
 
 				RCLCPP_INFO(
 					this->get_logger(),
-					"[FDIR] Component '%s' is UNCONFIGURED. "
-					"Triggering 'configure' transition...",
+					"[FDIR] Component '%s' is UNCONFIGURED. Triggering 'configure' transition...",
 					name.c_str());
 				break;
 
 			case lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE:
-				all_active   = false;
-				global_state = std::max(global_state, failure_state(node));
+				all_active      = false;
+				global_state    = std::max(global_state, failure_state(node));
 
 				// Component is configured but dormant. Initiating activation sequence.
 				change_node_state(name, lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 
 				RCLCPP_INFO(
 					this->get_logger(),
-					"[FDIR] Component '%s' is INACTIVE. "
-					"Triggering 'activate' transition...",
+					"[FDIR] Component '%s' is INACTIVE. Triggering 'activate' transition...",
 					name.c_str());
 				break;
 
@@ -502,8 +484,7 @@ void FdirManagerNode::monitor_loop() {
 				if (node.phase == RecoveryPhase::NOMINAL) {
 					RCLCPP_WARN(
 						this->get_logger(),
-						"[FDIR] Failure detected in '%s' (State ID: %d). "
-						"Initiating recovery sequence...",
+						"[FDIR] Failure detected in '%s' (State ID: %d). Initiating recovery sequence...",
 						name.c_str(), state);
 				}
 
@@ -521,7 +502,7 @@ void FdirManagerNode::monitor_loop() {
 					global_state = std::max(global_state, failure_state(node));
 				}
 				break;
-		} // switch
+		} // switch (state)
 	}
 
 	// Elevate status if the full software stack is operational
@@ -530,16 +511,15 @@ void FdirManagerNode::monitor_loop() {
 	}
 
 	// Broadcast current FDIR Health State to the telemetry interfaces
-	auto msg               = mona_msgs::msg::FdirState();
-	msg.header.stamp       = this->get_clock()->now();
-	msg.current_state      = global_state;
-	msg.diagnostic_message = all_active ?
-	    "Nominal operation." : "One or more components are recovering or failed.";
+	auto msg                = mona_msgs::msg::FdirState();
+	msg.header.stamp        = this->get_clock()->now();
+	msg.current_state       = global_state;
+	msg.diagnostic_message  = all_active ? "Nominal operation." : "One or more components are recovering or failed.";
 	health_state_pub_->publish(msg);
 
 	// System State Logging & Hardware Control Logic
-	auto contactor_msg = std_msgs::msg::Bool();
-	auto zero_twist    = geometry_msgs::msg::Twist();
+	auto contactor_msg  = std_msgs::msg::Bool();
+	auto zero_twist     = geometry_msgs::msg::Twist();
 
 	switch (global_state) {
 		case mona_msgs::msg::FdirState::STATE_EMERGENCY:
@@ -549,8 +529,7 @@ void FdirManagerNode::monitor_loop() {
 
 			RCLCPP_FATAL_THROTTLE(
 				this->get_logger(), *this->get_clock(), 1000,
-				COLOR_BOLD_RED "EMERGENCY: HARDWARE POWER CUTOFF AND "
-				"ZERO VELOCITY OVERRIDE TRIGGERED!" COLOR_RESET);
+				COLOR_BOLD_RED "EMERGENCY: HARDWARE POWER CUTOFF AND ZERO VELOCITY OVERRIDE TRIGGERED!" COLOR_RESET);
 			break;
 
 		case mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP:
@@ -583,7 +562,7 @@ void FdirManagerNode::monitor_loop() {
 				this->get_logger(),
 				*this->get_clock(), 1000, "INVALID SYSTEM STATE!");
 			break;
-	} // switch
+	} // switch (global_state)
 
 	// ==============================================================================
 	// HARDWARE WATCHDOG (DEAD MAN'S SWITCH) - MISSION CRITICAL
@@ -592,8 +571,8 @@ void FdirManagerNode::monitor_loop() {
 	// If the FDIR node crashes, freezes, or the OS panics, this signal stops.
 	// The hardware PLC must physically open the safety contactors if no pulse
 	// is received within a defined latency window (e.g., 200 ms).
-	auto heartbeat_msg = std_msgs::msg::Bool();
-	heartbeat_msg.data = true;
+	auto heartbeat_msg  = std_msgs::msg::Bool();
+	heartbeat_msg.data  = true;
 	heartbeat_pub_->publish(heartbeat_msg);
 }
 
@@ -618,9 +597,10 @@ uint8_t FdirManagerNode::failure_state(const ManagedNode &node) {
 			return mona_msgs::msg::FdirState::STATE_PROTECTIVE_STOP;
 		case Tier::AUXILIARY:
 			return mona_msgs::msg::FdirState::STATE_DEGRADED;
-		default:  // Out-of-range tier value (memory corruption): most restrictive state
+		default:
+			// Out-of-range tier value (memory corruption): most restrictive state
 			return mona_msgs::msg::FdirState::STATE_EMERGENCY;
-	} // switch
+	} // switch (node.tier)
 }
 
 /**
@@ -630,15 +610,15 @@ uint8_t FdirManagerNode::failure_state(const ManagedNode &node) {
  * @param   node - Reference to the managed component's state data.
  */
 void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
-	rclcpp::Time now          = this->get_clock()->now();
-	double       elapsed_time = (now - node.last_phase_change).seconds();
+	rclcpp::Time now    = this->get_clock()->now();
+	double elapsed_time = (now - node.last_phase_change).seconds();
 
 	switch (node.phase) {
 		case RecoveryPhase::NOMINAL:
 			node.retry_count++;
 			if (node.retry_count > MAX_RECOVERY_RETRIES) {
-				node.is_defective = true;
-				node.phase        = RecoveryPhase::DEFECTIVE;
+				node.is_defective   = true;
+				node.phase          = RecoveryPhase::DEFECTIVE;
 
 				RCLCPP_FATAL(
 					this->get_logger(),
@@ -658,8 +638,8 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 		case RecoveryPhase::POWER_OFF:
 			// Actuate immediately based on defined mechanism to ensure minimal safety latency
 			if (node.reset_mechanism == ResetMechanism::HARDWARE_RELAY) {
-				auto msg = std_msgs::msg::Bool();
-				msg.data = false;
+				auto msg    = std_msgs::msg::Bool();
+				msg.data    = false;
 				relay_pubs_[node.name]->publish(msg);
 
 				RCLCPP_WARN(
@@ -673,8 +653,8 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 
 				if (actual_state == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE) {
 					// The component reports ACTIVE again: the failure condition is gone
-					node.phase             = RecoveryPhase::NOMINAL;
-					node.last_phase_change = now;
+					node.phase              = RecoveryPhase::NOMINAL;
+					node.last_phase_change  = now;
 
 					RCLCPP_WARN(
 						this->get_logger(),
@@ -684,8 +664,7 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 				}
 
 				if (actual_state == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE) {
-					change_node_state(
-						node.name, lifecycle_msgs::msg::Transition::TRANSITION_CLEANUP);
+					change_node_state(node.name, lifecycle_msgs::msg::Transition::TRANSITION_CLEANUP);
 
 					RCLCPP_INFO(
 						this->get_logger(),
@@ -696,14 +675,13 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 					// FINALIZED accept no externally requested transition.
 					RCLCPP_INFO(
 						this->get_logger(),
-						"[FDIR] No lifecycle reset is valid for '%s' in state %d. "
-						"Waiting for the component.",
+						"[FDIR] No lifecycle reset is valid for '%s' in state %d. Waiting for the component.",
 						node.name.c_str(), actual_state);
 				}
 			} else {
 				// Security/Integrity fallback: Catch uninitialized or corrupted mechanism states
-				node.is_defective = true;
-				node.phase        = RecoveryPhase::DEFECTIVE;
+				node.is_defective   = true;
+				node.phase          = RecoveryPhase::DEFECTIVE;
 
 				RCLCPP_FATAL(
 					this->get_logger(),
@@ -713,8 +691,8 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 			}
 
 			// Update FSM state to wait for capacitor discharge or software teardown
-			node.phase             = RecoveryPhase::WAIT_DISCHARGE;
-			node.last_phase_change = now;
+			node.phase              = RecoveryPhase::WAIT_DISCHARGE;
+			node.last_phase_change  = now;
 			break;
 
 		case RecoveryPhase::WAIT_DISCHARGE:
@@ -725,8 +703,7 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 			if (elapsed_time <= 0.15) {
 				RCLCPP_INFO(
 					this->get_logger(),
-					"[FDIR] Hardware discharging phase initiated for '%s'. "
-					"Holding for %.1f seconds...",
+					"[FDIR] Hardware discharging phase initiated for '%s'. Holding for %.1f seconds...",
 					node.name.c_str(), node.power_off_time);
 			}
 
@@ -739,13 +716,13 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 		case RecoveryPhase::POWER_ON:
 			// Actuate immediately to restore nominal state
 			if (node.reset_mechanism == ResetMechanism::HARDWARE_RELAY) {
-				auto msg = std_msgs::msg::Bool();
-				msg.data = true;
+				auto msg    = std_msgs::msg::Bool();
+				msg.data    = true;
 				relay_pubs_[node.name]->publish(msg);
 
 				RCLCPP_INFO(
 					this->get_logger(),
-					"[FDIR] Power restored to '%s'. RELAY CLOSED.",
+					"[FDIR] Power restored to '%s'.",
 					node.name.c_str());
 			} else if (node.reset_mechanism == ResetMechanism::LIFECYCLE_SERVICE) {
 				// Software mechanism requires no explicit power-on action, proceed to boot logging
@@ -755,8 +732,8 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 					node.name.c_str());
 			} else {
 				// Security/Integrity fallback during power restoration
-				node.is_defective = true;
-				node.phase        = RecoveryPhase::DEFECTIVE;
+				node.is_defective   = true;
+				node.phase          = RecoveryPhase::DEFECTIVE;
 
 				RCLCPP_FATAL(
 					this->get_logger(),
@@ -766,8 +743,8 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 			}
 
 			// Update FSM state to wait for OS/Firmware initialization
-			node.phase             = RecoveryPhase::WAIT_BOOT;
-			node.last_phase_change = now;
+			node.phase              = RecoveryPhase::WAIT_BOOT;
+			node.last_phase_change  = now;
 			break;
 
 		case RecoveryPhase::WAIT_BOOT:
@@ -776,8 +753,7 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 			if (elapsed_time <= 0.15) {
 				RCLCPP_INFO(
 					this->get_logger(),
-					"[FDIR] Boot sequence initiated for '%s'. "
-					"Waiting %.1f seconds for initialization...",
+					"[FDIR] Boot sequence initiated for '%s'. Waiting %.1f seconds for initialization...",
 					node.name.c_str(), node.startup_time);
 			}
 
@@ -785,8 +761,8 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 				// Boot duration exhausted. Transition back to NOMINAL
 				// to allow the primary monitor_loop to evaluate
 				// if the node successfully reached the ACTIVE state.
-				node.phase             = RecoveryPhase::NOMINAL;
-				node.last_phase_change = now;
+				node.phase              = RecoveryPhase::NOMINAL;
+				node.last_phase_change  = now;
 
 				RCLCPP_INFO(
 					this->get_logger(),
@@ -801,17 +777,17 @@ void FdirManagerNode::handle_recovery_fsm(ManagedNode &node) {
 
 		default:
 			// Ultimate safety catch-all for corrupted memory or invalid enum states
-			node.is_defective = true;
-			node.phase        = RecoveryPhase::DEFECTIVE;
+			node.is_defective   = true;
+			node.phase          = RecoveryPhase::DEFECTIVE;
 
 			RCLCPP_FATAL(
 				this->get_logger(),
 				"[FDIR] CRITICAL FAULT: Invalid FSM phase detected for '%s'. Engaging Lockout.",
 				node.name.c_str());
 			break;
-	} // switch
+	}   // switch (node.phase)
 }
-}  // namespace mona_core
+}       // namespace mona_core
 
 
 // Register the component within the ROS 2 infrastructure

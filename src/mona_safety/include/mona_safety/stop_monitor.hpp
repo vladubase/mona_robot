@@ -33,10 +33,9 @@ struct StopMonitorConfig {
 };
 
 /**
- * @brief   Time-monitored stop in the sense of SS1-t (IEC 61800-5-2), free of ROS
- *          dependencies so that the logic is unit-testable with synthetic time.
- *          On entry into a stop, the permitted stopping time is derived from the
- *          measured entry speed and the minimum deceleration, plus a fixed margin.
+ * @brief   Time-monitored stop in the sense of SS1-t (IEC 61800-5-2).
+ * 			On entry into a stop, the permitted stopping time is derived from the
+ * 			measured entry speed and the minimum deceleration, plus a fixed margin.
  *          Motion before this deadline is the expected braking. Motion after it,
  *          confirmed by debounce_samples consecutive samples, violates the stop.
  *          A non-finite speed sample is treated as motion (fail-safe).
@@ -50,7 +49,9 @@ public:
 
 	/** @return  true if every value is finite and positive (debounce at least 1). */
 	static bool is_valid(const StopMonitorConfig &config) {
-		const auto positive = [](double value) {return std::isfinite(value) && value > 0.0;};
+		const auto positive = [](double value) {
+			return std::isfinite(value) && value > 0.0;
+		};
 		return positive(config.deceleration) && positive(config.angular_deceleration) &&
 		       positive(config.time_margin) && positive(config.standstill_linear) &&
 		       positive(config.standstill_angular) && config.debounce_samples >= 1;

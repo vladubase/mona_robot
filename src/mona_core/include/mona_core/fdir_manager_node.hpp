@@ -39,20 +39,20 @@ public:
 	~FdirManagerNode();
 
 	// Prevent accidental copying or moving of the safety manager (Rule of Five)
-	FdirManagerNode(const FdirManagerNode &)             = delete;
-	FdirManagerNode & operator=(const FdirManagerNode &) = delete;
+	FdirManagerNode(const FdirManagerNode &)                = delete;
+	FdirManagerNode & operator=(const FdirManagerNode &)    = delete;
 	FdirManagerNode(FdirManagerNode &&)             = delete;
 	FdirManagerNode & operator=(FdirManagerNode &&) = delete;
 
 private:
-	static constexpr int MAX_RECOVERY_RETRIES = 3;
-	static constexpr int MONITOR_PERIOD_MS    = 100;
+	static constexpr int MAX_RECOVERY_RETRIES   = 3;
+	static constexpr int MONITOR_PERIOD_MS      = 100;
 
 	/** @brief   Node criticality tiers according to fdir_policy.yaml */
 	enum class Tier {
-		FATAL,      // Triggers hardware EMERGENCY E-Stop
-		PRIMARY,    // Triggers software PROTECTIVE_STOP
-		AUXILIARY   // Triggers DEGRADED mode
+		FATAL,              // Triggers hardware EMERGENCY E-Stop
+		PRIMARY,            // Triggers software PROTECTIVE_STOP
+		AUXILIARY           // Triggers DEGRADED mode
 	};
 
 	/** @brief   Defines the deterministic mechanism utilized to reset a failed component.
@@ -64,12 +64,12 @@ private:
 
 	/** @brief   Finite State Machine (FSM) phases for deterministic component recovery. */
 	enum class RecoveryPhase {
-		NOMINAL,        // Component operating normally
-		POWER_OFF,      // Initiating power cutoff or software cleanup
-		WAIT_DISCHARGE, // Waiting for capacitors to discharge or OS to halt
-		POWER_ON,       // Restoring power
-		WAIT_BOOT,      // Waiting for firmware/OS initialization
-		DEFECTIVE       // Permanent failure lockout
+		NOMINAL,            // Component operating normally
+		POWER_OFF,          // Initiating power cutoff or software cleanup
+		WAIT_DISCHARGE,     // Waiting for capacitors to discharge or OS to halt
+		POWER_ON,           // Restoring power
+		WAIT_BOOT,          // Waiting for firmware/OS initialization
+		DEFECTIVE           // Permanent failure lockout
 	};
 
 	/** @brief   Structure to track the lifecycle and health of a managed node. */
@@ -114,15 +114,14 @@ private:
 	rclcpp::Publisher<mona_msgs::msg::FdirState>::SharedPtr health_state_pub_;
 	rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr contactor_pub_;
 	rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr heartbeat_pub_;
+
 	// Global Velocity Override (Secondary Safety Layer)
 	rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_override_pub_;
 
 	// State tracking unordered_maps
 	std::unordered_map<std::string, ManagedNode> managed_nodes_;
-	std::unordered_map<std::string,
-	    rclcpp::Client<lifecycle_msgs::srv::GetState>::SharedPtr> get_state_clients_;
-	std::unordered_map<std::string,
-	    rclcpp::Client<lifecycle_msgs::srv::ChangeState>::SharedPtr> change_state_clients_;
+	std::unordered_map<std::string, rclcpp::Client<lifecycle_msgs::srv::GetState>::SharedPtr> get_state_clients_;
+	std::unordered_map<std::string, rclcpp::Client<lifecycle_msgs::srv::ChangeState>::SharedPtr> change_state_clients_;
 	std::unordered_map<std::string, rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> relay_pubs_;
 
 	// Core initialization and monitoring logic

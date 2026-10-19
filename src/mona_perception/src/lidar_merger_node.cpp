@@ -55,8 +55,8 @@ CallbackReturn LidarMergerNode::on_configure(const rclcpp_lifecycle::State &) {
 	}
 
 	// Read the parameters into class variables
-	target_frame_      = this->get_parameter("target_frame").as_string();
-	transform_timeout_ = this->get_parameter("transform_timeout").as_double();
+	target_frame_       = this->get_parameter("target_frame").as_string();
+	transform_timeout_  = this->get_parameter("transform_timeout").as_double();
 
 	// Fallback protection just in case
 	if (target_frame_.empty()) {
@@ -65,8 +65,8 @@ CallbackReturn LidarMergerNode::on_configure(const rclcpp_lifecycle::State &) {
 	}
 
 	// Initialize TF
-	tf_buffer_   = std::make_shared<tf2_ros::Buffer>(this->get_clock());
-	tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+	tf_buffer_      = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+	tf_listener_    = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
 	// Configure QoS for compatibility with LiDAR drivers (Best Effort)
 	rmw_qos_profile_t custom_qos = rmw_qos_profile_sensor_data;
@@ -85,8 +85,8 @@ CallbackReturn LidarMergerNode::on_configure(const rclcpp_lifecycle::State &) {
 	// Initialize subscribers
 	// Pass 'this' (the node), topic name, and QoS profile
 	sub_front_.subscribe(this, "lidar_front/scan", custom_qos);
-	sub_back_.subscribe(this, "lidar_back/scan", custom_qos);
-	sub_left_.subscribe(this, "lidar_left/scan", custom_qos);
+	sub_back_.subscribe(this,  "lidar_back/scan",  custom_qos);
+	sub_left_.subscribe(this,  "lidar_left/scan",  custom_qos);
 	sub_right_.subscribe(this, "lidar_right/scan", custom_qos);
 
 	// Initialize synchronizer
@@ -100,9 +100,7 @@ CallbackReturn LidarMergerNode::on_configure(const rclcpp_lifecycle::State &) {
 			std::placeholders::_1, std::placeholders::_2,
 			std::placeholders::_3, std::placeholders::_4));
 
-	RCLCPP_INFO(
-		this->get_logger(), "Lidar Merger CONFIGURED. Target frame: %s",
-		target_frame_.c_str());
+	RCLCPP_INFO(this->get_logger(), "Lidar Merger CONFIGURED. Target frame: %s", target_frame_.c_str());
 	return CallbackReturn::SUCCESS;
 }
 
@@ -154,9 +152,7 @@ CallbackReturn LidarMergerNode::on_shutdown(const rclcpp_lifecycle::State &) {
 }
 
 CallbackReturn LidarMergerNode::on_error(const rclcpp_lifecycle::State &previous_state) {
-	RCLCPP_ERROR(
-		get_logger(), "Error handling transition from %s",
-		previous_state.label().c_str());
+	RCLCPP_ERROR(get_logger(), "Error handling transition from %s", previous_state.label().c_str());
 
 	// Clear resources if necessary
 	publisher_.reset();
@@ -250,9 +246,9 @@ void LidarMergerNode::concatenate_pointclouds(
 		add.data.size()                     // Number of bytes to copy
 	);
 
-	base.width   += add.width;
-	base.row_step = base.width * base.point_step;
-	base.is_dense = base.is_dense && add.is_dense;
+	base.width      += add.width;
+	base.row_step   = base.width * base.point_step;
+	base.is_dense   = base.is_dense && add.is_dense;
 }
 }  // namespace mona_perception
 
