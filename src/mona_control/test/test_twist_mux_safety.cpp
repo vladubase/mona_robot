@@ -66,28 +66,27 @@ protected:
 		node_->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 
 		// 3. Create test publishers to simulate incoming FDIR and Teleop data
-		test_node_ = std::make_shared<rclcpp::Node>("twist_mux_test_stimulator");
-		fdir_pub_  = test_node_->create_publisher<mona_msgs::msg::FdirState>(
-			"system/health_state", 10);
+		test_node_  = std::make_shared<rclcpp::Node>("twist_mux_test_stimulator");
+		fdir_pub_   = test_node_->create_publisher<mona_msgs::msg::FdirState>("system/health_state", 10);
 		teleop_pub_ = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_teleop", 10);
 
 		// 4. Create test subscribers to monitor output
 		smooth_sub_ = test_node_->create_subscription<geometry_msgs::msg::Twist>(
 			"cmd_vel_smoothed", 10,
 			[this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-				latest_cmd_   = *msg;
-				cmd_received_ = true;
-			});
+			latest_cmd_     = *msg;
+			cmd_received_   = true;
+		});
 
 		state_sub_ = test_node_->create_subscription<mona_msgs::msg::TwistMuxState>(
 			"mux_state", 10,
 			[this](const mona_msgs::msg::TwistMuxState::SharedPtr msg) {
-				latest_state_ = msg->current_state;
-			});
+			latest_state_ = msg->current_state;
+		});
 
 		// Initialize state
-		cmd_received_ = false;
-		latest_state_ = 255;  // 255 is used as an UNKNOWN initial state
+		cmd_received_   = false;
+		latest_state_   = 255; // 255 is used as an UNKNOWN initial state
 
 		// Ensure DDS discovery completes before tests start to prevent lost messages
 		spin_for_milliseconds(150);
@@ -110,9 +109,7 @@ protected:
 		executor.add_node(test_node_->get_node_base_interface());
 
 		auto start_time = std::chrono::steady_clock::now();
-		while (std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(
-				duration_ms))
-		{
+		while (std::chrono::steady_clock::now() - start_time < std::chrono::milliseconds(duration_ms)) {
 			executor.spin_some(10ms);
 			std::this_thread::sleep_for(10ms);
 		}
@@ -148,9 +145,9 @@ TEST_F(TwistMuxSafetyFixture, TeleopPassesThroughWhenNominal) {
 
 	// Act: Send a teleop command (must be within limits <= 1.0)
 	geometry_msgs::msg::Twist teleop_msg;
-	teleop_msg.linear.x  = 0.8;
-	teleop_msg.linear.y  = 0.0;
-	teleop_msg.angular.z = -0.5;
+	teleop_msg.linear.x     = 0.8;
+	teleop_msg.linear.y     = 0.0;
+	teleop_msg.angular.z    = -0.5;
 	teleop_pub_->publish(teleop_msg);
 	spin_for_milliseconds(150);
 
@@ -178,9 +175,7 @@ TEST_F(TwistMuxSafetyFixture, BlocksCommandsOnProtectiveStop) {
 
 	// Assert: Output should be zeroed out and status is BLOCKED
 	ASSERT_TRUE(cmd_received_);
-	EXPECT_DOUBLE_EQ(
-		latest_cmd_.linear.x,
-		0.0) << "Velocity was not suppressed during PROTECTIVE_STOP!";
+	EXPECT_DOUBLE_EQ(latest_cmd_.linear.x, 0.0) << "Velocity was not suppressed during PROTECTIVE_STOP!";
 	EXPECT_DOUBLE_EQ(latest_cmd_.linear.y, 0.0);
 	EXPECT_DOUBLE_EQ(latest_cmd_.angular.z, 0.0);
 	EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::BLOCKED_BY_SAFETY);
@@ -202,9 +197,7 @@ TEST_F(TwistMuxSafetyFixture, BlocksCommandsOnReconfiguredState) {
 
 	// Assert: Output should be zeroed out and status is BLOCKED
 	ASSERT_TRUE(cmd_received_);
-	EXPECT_DOUBLE_EQ(
-		latest_cmd_.linear.x,
-		0.0) << "Velocity was not suppressed during RECONFIGURED!";
+	EXPECT_DOUBLE_EQ(latest_cmd_.linear.x, 0.0) << "Velocity was not suppressed during RECONFIGURED!";
 	EXPECT_DOUBLE_EQ(latest_cmd_.linear.y, 0.0);
 	EXPECT_DOUBLE_EQ(latest_cmd_.angular.z, 0.0);
 	EXPECT_EQ(latest_state_, mona_msgs::msg::TwistMuxState::BLOCKED_BY_SAFETY);
@@ -314,9 +307,7 @@ TEST_F(TwistMuxSafetyFixture, VerifiesEmaRampUp) {
 
 	// Assert: Because of EMA (alpha=0.1), the first output should be ~0.1, not 1.0
 	ASSERT_TRUE(cmd_received_) << "Command lost! Likely due to DDS discovery delay.";
-	EXPECT_NEAR(
-		latest_cmd_.linear.x, 0.25,
-		0.15) << "EMA filter is not smoothing the acceleration!";
+	EXPECT_NEAR(latest_cmd_.linear.x, 0.25, 0.15) << "EMA filter is not smoothing the acceleration!";
 }
 
 // Test 8: Verify that navigation commands during the manual takeover lock never crash

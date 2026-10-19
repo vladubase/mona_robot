@@ -70,8 +70,8 @@ protected:
 		test_node_ = std::make_shared<rclcpp::Node>("safety_test_stimulator");
 
 		// Publisher to simulate commands coming from TwistMux
-		cmd_pub_  = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_smoothed", 10);
-		fdir_pub_ = test_node_->create_publisher<mona_msgs::msg::FdirState>(
+		cmd_pub_    = test_node_->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_smoothed", 10);
+		fdir_pub_   = test_node_->create_publisher<mona_msgs::msg::FdirState>(
 			"system/health_state", 10);
 
 		// Service clients for E-STOP interactions
@@ -83,26 +83,26 @@ protected:
 		motor_sub_ = test_node_->create_subscription<geometry_msgs::msg::Twist>(
 			"hardware/motor_cmd", 10,
 			[this](const geometry_msgs::msg::Twist::SharedPtr msg) {
-				latest_motor_cmd_ = *msg;
-				cmd_received_     = true;
-			});
+			latest_motor_cmd_   = *msg;
+			cmd_received_       = true;
+		});
 
 		contactor_sub_ = test_node_->create_subscription<std_msgs::msg::Bool>(
 			"hardware/contactors", 10,
 			[this](const std_msgs::msg::Bool::SharedPtr msg) {
-				latest_contactor_state_ = msg->data;
-			});
+			latest_contactor_state_ = msg->data;
+		});
 
 		// Initialize state
-		cmd_received_                     = false;
-		latest_contactor_state_           = false;
-		current_fdir_state_.current_state = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
+		cmd_received_                       = false;
+		latest_contactor_state_             = false;
+		current_fdir_state_.current_state   = mona_msgs::msg::FdirState::STATE_SOFTWARE_OK;
 
 		fdir_timer_ = test_node_->create_wall_timer(
 			50ms,
 			[this]() {
-				fdir_pub_->publish(current_fdir_state_);
-			}
+			fdir_pub_->publish(current_fdir_state_);
+		}
 		);
 
 		// Ensure service servers are ready before tests begin
@@ -198,14 +198,14 @@ TEST_F(SafetyLogicFixture, EnforcesHardVelocityLimits) {
 	EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, -1.0) << "Angular velocity exceeded limit!";
 }
 
-// Test 2b: Verify that a diagonal command cannot exceed the planar speed limit
+// Test 3: Verify that a diagonal command cannot exceed the planar speed limit
 TEST_F(SafetyLogicFixture, LimitsDiagonalPlanarSpeed) {
 	spin_for_milliseconds(150);
 
 	// Act: Command 1.0 m/s on both axes (1.41 m/s resultant on a holonomic base)
 	geometry_msgs::msg::Twist input_msg;
-	input_msg.linear.x = 1.0;
-	input_msg.linear.y = 1.0;
+	input_msg.linear.x  = 1.0;
+	input_msg.linear.y  = 1.0;
 
 	cmd_pub_->publish(input_msg);
 	spin_for_milliseconds(100);
@@ -217,7 +217,7 @@ TEST_F(SafetyLogicFixture, LimitsDiagonalPlanarSpeed) {
 	    << "Diagonal motion exceeded max_speed_normal!";
 }
 
-// Test 2c: Verify that non-finite commands are replaced by a stop
+// Test 4: Verify that non-finite commands are replaced by a stop
 TEST_F(SafetyLogicFixture, RejectsNonFiniteCommand) {
 	spin_for_milliseconds(150);
 
@@ -235,21 +235,21 @@ TEST_F(SafetyLogicFixture, RejectsNonFiniteCommand) {
 	EXPECT_DOUBLE_EQ(latest_motor_cmd_.angular.z, 0.0);
 }
 
-// Test 3: Verify E-STOP Service triggers hardware disconnect
+// Test 5: Verify E-STOP Service triggers hardware disconnect
 TEST_F(SafetyLogicFixture, EstopServiceOpensContactors) {
 	// Arrange: Ensure system is running and contactors are closed
 	spin_for_milliseconds(150);
 
 	// Act: Trigger software E-STOP via service call
-	auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
-	auto result  = estop_client_->async_send_request(request);
+	auto request    = std::make_shared<std_srvs::srv::Trigger::Request>();
+	auto result     = estop_client_->async_send_request(request);
 	spin_for_milliseconds(200);
 
 	// Assert: Hardware contactors must be physically disconnected (false)
 	EXPECT_FALSE(latest_contactor_state_) << "Contactors remained closed during E-STOP!";
 }
 
-// Test 4: Verify E-STOP overrides and zeroes out incoming velocity commands
+// Test 6: Verify E-STOP overrides and zeroes out incoming velocity commands
 TEST_F(SafetyLogicFixture, EstopZeroesOutVelocity) {
 	// Arrange: Ensure system is running, then trigger E-STOP
 	spin_for_milliseconds(150);
@@ -268,7 +268,7 @@ TEST_F(SafetyLogicFixture, EstopZeroesOutVelocity) {
 	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.0) << "Motion NOT allowed during E-STOP!";
 }
 
-// Test 5: Verify E-STOP Reset restores system to operational state
+// Test 7: Verify E-STOP Reset restores system to operational state
 TEST_F(SafetyLogicFixture, EstopResetRestoresOperation) {
 	// Arrange: Put system into E-STOP mode
 	spin_for_milliseconds(150);
@@ -286,7 +286,7 @@ TEST_F(SafetyLogicFixture, EstopResetRestoresOperation) {
 	EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after E-STOP Reset!";
 }
 
-// Test 6: Verify that a reset alone never restores power without FDIR clearance
+// Test 8: Verify that a reset alone never restores power without FDIR clearance
 TEST_F(SafetyLogicFixture, EstopResetRequiresFdirClearance) {
 	// Arrange: Trigger the E-STOP, then stop the simulated FDIR health stream
 	spin_for_milliseconds(150);
@@ -323,7 +323,7 @@ TEST_F(SafetyLogicFixture, EstopResetRequiresFdirClearance) {
 	EXPECT_TRUE(latest_contactor_state_) << "Contactors did not close after reset and clearance!";
 }
 
-// Test 7: Verify that an unknown FDIR state halts motion and opens the contactors
+// Test 9: Verify that an unknown FDIR state halts motion and opens the contactors
 TEST_F(SafetyLogicFixture, UnknownFdirStateHaltsMotion) {
 	spin_for_milliseconds(150);
 	ASSERT_TRUE(latest_contactor_state_);
@@ -345,7 +345,7 @@ TEST_F(SafetyLogicFixture, UnknownFdirStateHaltsMotion) {
 		0.0) << "Motion allowed in an undefined FDIR state!";
 }
 
-// Test 8: Silence of FDIR latches PROTECTIVE_STOP until a reset
+// Test 10: Silence of FDIR latches PROTECTIVE_STOP until a reset
 TEST_F(SafetyLogicFixture, FdirSilenceLatchesProtectiveStop) {
 	spin_for_milliseconds(150);
 	ASSERT_TRUE(latest_contactor_state_);
@@ -383,7 +383,7 @@ TEST_F(SafetyLogicFixture, FdirSilenceLatchesProtectiveStop) {
 	EXPECT_DOUBLE_EQ(latest_motor_cmd_.linear.x, 0.5) << "Motion not restored after reset!";
 }
 
-// Test 9: Regular FDIR states do not trip the watchdog
+// Test 11: Regular FDIR states do not trip the watchdog
 TEST_F(SafetyLogicFixture, RegularFdirStatesKeepOperation) {
 	spin_for_milliseconds(1000);
 
@@ -399,7 +399,7 @@ TEST_F(SafetyLogicFixture, RegularFdirStatesKeepOperation) {
 		0.5) << "Watchdog tripped with regular FDIR states!";
 }
 
-// Test 10: A stale command stream is replaced by zero velocity
+// Test 12: A stale command stream is replaced by zero velocity
 TEST_F(SafetyLogicFixture, StaleCommandStreamPublishesStop) {
 	spin_for_milliseconds(150);
 
@@ -418,16 +418,16 @@ TEST_F(SafetyLogicFixture, StaleCommandStreamPublishesStop) {
 	EXPECT_TRUE(latest_contactor_state_) << "A stale command stream changed the safety state!";
 }
 
-// Test 11: Motion beyond the permitted stopping time in PROTECTIVE_STOP escalates
+// Test 13: Motion beyond the permitted stopping time in PROTECTIVE_STOP escalates
 TEST_F(SafetyLogicFixture, MotionAfterStoppingTimeEscalatesToEmergency) {
 	// Arrange: Odometry reports a constant 0.3 m/s (the robot does not brake)
 	auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 	auto odom_timer = test_node_->create_wall_timer(
 		20ms, [odom_pub]() {
-			nav_msgs::msg::Odometry odom;
-			odom.twist.twist.linear.x = 0.3;
-			odom_pub->publish(odom);
-		});
+		nav_msgs::msg::Odometry odom;
+		odom.twist.twist.linear.x = 0.3;
+		odom_pub->publish(odom);
+	});
 	spin_for_milliseconds(300);
 	ASSERT_TRUE(latest_contactor_state_);
 
@@ -444,17 +444,17 @@ TEST_F(SafetyLogicFixture, MotionAfterStoppingTimeEscalatesToEmergency) {
 	EXPECT_FALSE(latest_contactor_state_) << "Motion after the stopping time was not escalated!";
 }
 
-// Test 12: A controlled stop within the permitted stopping time does not escalate
+// Test 14: A controlled stop within the permitted stopping time does not escalate
 TEST_F(SafetyLogicFixture, ControlledStopWithinTimeDoesNotEscalate) {
 	// Arrange: Odometry reports 0.3 m/s until the stop, then standstill
 	auto moving     = std::make_shared<bool>(true);
 	auto odom_pub   = test_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 	auto odom_timer = test_node_->create_wall_timer(
 		20ms, [odom_pub, moving]() {
-			nav_msgs::msg::Odometry odom;
-			odom.twist.twist.linear.x = *moving ? 0.3 : 0.0;
-			odom_pub->publish(odom);
-		});
+		nav_msgs::msg::Odometry odom;
+		odom.twist.twist.linear.x = *moving ? 0.3 : 0.0;
+		odom_pub->publish(odom);
+	});
 	spin_for_milliseconds(300);
 	ASSERT_TRUE(latest_contactor_state_);
 

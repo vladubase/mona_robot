@@ -21,7 +21,7 @@ COMPOSE ?= docker compose
 HOST_ENV := $(shell ./scripts/detect_host.bash)
 $(foreach kv,$(HOST_ENV),$(eval export $(kv)))
 
-.PHONY: build rebuild up up-gpu down logs ps shell format ci doctor help \
+.PHONY: build rebuild up up-gpu down logs ps shell format_code ci doctor help \
 	b r u ug d l p s f c
 
 help: ## Show available Makefile targets
@@ -53,7 +53,7 @@ shell: ## Attach to the dev container's bash shell
 	$(COMPOSE) up -d dev
 	$(COMPOSE) exec -it dev bash
 
-format: ## Run auto-formatting inside the dev container
+format_code: ## Format C++/Python/CMake and verify them with the CI linters (dev container)
 	$(COMPOSE) up -d dev
 	$(COMPOSE) exec dev bash -c "./scripts/format_code.bash"
 
@@ -101,8 +101,8 @@ p: ## alias: ps
 s: ## alias: shell
 	$(MAKE) shell
 
-f: ## alias: format
-	$(MAKE) format
+f: ## alias: format_code
+	$(MAKE) format_code
 
 c: ## alias: ci
 	$(MAKE) ci

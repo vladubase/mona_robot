@@ -52,8 +52,7 @@ TEST_F(TestTwistMux, LifecycleTransition) {
 
 	// Trigger on_configure()
 	// This verifies memory allocation, parameter retrieval, and publisher/subscription setup
-	auto state_after_configure = node->trigger_transition(
-		lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
+	auto state_after_configure = node->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE);
 
 	EXPECT_EQ(
 		state_after_configure.id(),
@@ -62,8 +61,7 @@ TEST_F(TestTwistMux, LifecycleTransition) {
 
 	// Trigger on_activate()
 	// This verifies the activation of lifecycle publishers and internal state resets
-	auto state_after_activate = node->trigger_transition(
-		lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
+	auto state_after_activate = node->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE);
 
 	EXPECT_EQ(
 		state_after_activate.id(),
@@ -72,8 +70,7 @@ TEST_F(TestTwistMux, LifecycleTransition) {
 
 	// Trigger on_deactivate()
 	// This verifies that data streams halt seamlessly
-	auto state_after_deactivate = node->trigger_transition(
-		lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);
+	auto state_after_deactivate = node->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_DEACTIVATE);
 
 	EXPECT_EQ(
 		state_after_deactivate.id(),
@@ -82,8 +79,7 @@ TEST_F(TestTwistMux, LifecycleTransition) {
 
 	// Trigger on_shutdown()
 	// This verifies proper resource deallocation via the on_cleanup callback
-	auto state_after_shutdown = node->trigger_transition(
-		lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN);
+	auto state_after_shutdown = node->trigger_transition(lifecycle_msgs::msg::Transition::TRANSITION_INACTIVE_SHUTDOWN);
 
 	EXPECT_EQ(
 		state_after_shutdown.id(),

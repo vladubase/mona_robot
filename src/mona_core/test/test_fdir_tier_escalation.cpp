@@ -69,17 +69,17 @@ protected:
 			rclcpp::Parameter("components.mock_mux.reset_mechanism", "lifecycle_service")
 		});
 
-		fdir_node_   = std::make_shared<mona_core::FdirManagerNode>(options);
-		mock_safety_ = std::make_shared<rclcpp_lifecycle::LifecycleNode>("mock_safety_node");
-		mock_mux_    = std::make_shared<rclcpp_lifecycle::LifecycleNode>("mock_mux_node");
-		test_node_   = std::make_shared<rclcpp::Node>("fdir_tier_test_observer");
+		fdir_node_      = std::make_shared<mona_core::FdirManagerNode>(options);
+		mock_safety_    = std::make_shared<rclcpp_lifecycle::LifecycleNode>("mock_safety_node");
+		mock_mux_       = std::make_shared<rclcpp_lifecycle::LifecycleNode>("mock_mux_node");
+		test_node_      = std::make_shared<rclcpp::Node>("fdir_tier_test_observer");
 
 		health_sub_ = test_node_->create_subscription<mona_msgs::msg::FdirState>(
 			"system/health_state", 10,
 			[this](const mona_msgs::msg::FdirState::SharedPtr msg) {
-				const std::lock_guard<std::mutex> lock(states_mutex_);
-				observed_states_.push_back(msg->current_state);
-			});
+			const std::lock_guard<std::mutex> lock(states_mutex_);
+			observed_states_.push_back(msg->current_state);
+		});
 	}
 
 	void TearDown() override {
@@ -106,7 +106,7 @@ protected:
 	// Returns the health states received since the last call and clears the record.
 	std::vector<uint8_t> take_observed_states() {
 		const std::lock_guard<std::mutex> lock(states_mutex_);
-		std::vector<uint8_t>              states;
+		std::vector<uint8_t> states;
 		states.swap(observed_states_);
 		return states;
 	}
@@ -120,12 +120,12 @@ protected:
 		auto done = std::make_shared<bool>(false);
 		return node->create_wall_timer(
 			10ms, [done, duration]() {
-				if (*done) {
-					return;
-				}
-				*done = true;
-				std::this_thread::sleep_for(duration);
-			});
+			if (*done) {
+				return;
+			}
+			*done = true;
+			std::this_thread::sleep_for(duration);
+		});
 	}
 
 	static bool contains(const std::vector<uint8_t> &states, uint8_t state) {

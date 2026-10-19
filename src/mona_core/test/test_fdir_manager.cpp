@@ -77,16 +77,16 @@ protected:
 		health_sub_ = test_node_->create_subscription<mona_msgs::msg::FdirState>(
 			"system/health_state", 10,
 			[this](const mona_msgs::msg::FdirState::SharedPtr msg) {
-				latest_health_state_ = msg->current_state;
-				health_msg_received_ = true;
-			});
+			latest_health_state_    = msg->current_state;
+			health_msg_received_    = true;
+		});
 
 		contactor_sub_ = test_node_->create_subscription<std_msgs::msg::Bool>(
 			"hardware/contactors", 10,
 			[this](const std_msgs::msg::Bool::SharedPtr msg) {
-				latest_contactor_state_ = msg->data;
-				contactor_msg_received_ = true;
-			});
+			latest_contactor_state_ = msg->data;
+			contactor_msg_received_ = true;
+		});
 
 		// Initialize state
 		health_msg_received_    = false;
